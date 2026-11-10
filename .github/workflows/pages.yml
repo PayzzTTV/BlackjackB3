@@ -37,6 +37,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # L'URL de l'API vient du secret BJ_API_URL : elle n'est jamais commitée.
+      # Passée par variable d'environnement (pas d'interpolation ${{ }} dans le script : anti-injection),
+      # et validée strictement avant d'être écrite dans config.js.
+      - name: Injecter la configuration depuis les secrets
+        env:
+          BJ_API_URL: ${{ secrets.BJ_API_URL }}
+        run: bash scripts/injecter-config.sh frontend/config.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

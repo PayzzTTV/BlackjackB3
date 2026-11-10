@@ -15,7 +15,9 @@ frontend/        page statique (HTML/CSS/JS sans dépendance), publiée sur GitH
   index.html     structure + Content-Security-Policy
   style.css
   app.js         affichage, cookie de session, appels API
-  config.js      URL de l'API Apps Script  <- à renseigner
+  config.js      URL de l'API (factice dans le dépôt, injectée depuis le secret BJ_API_URL)
+scripts/
+  injecter-config.sh  injection et validation du secret au déploiement
 backend/         Google Apps Script (à coller dans l'éditeur du Sheet)
   Code.gs        API HTTP, sessions, quotas, verrous, accès au Sheet
   Table.gs       logique de la table multijoueur (pure)
@@ -46,10 +48,15 @@ Vous pouvez aussi utiliser [`clasp`](https://github.com/google/clasp) (`clasp pu
 
 ### 2. Le front
 
-1. Collez l'URL de l'étape précédente dans [`frontend/config.js`](frontend/config.js) (`API_URL`).
-2. Poussez sur GitHub, puis **Settings → Pages → Source : GitHub Actions**. Le workflow [`pages.yml`](.github/workflows/pages.yml) publie le dossier `frontend/` à chaque push sur `main`.
+1. **Settings → Secrets and variables → Actions → New repository secret** :
+   - *Name* : `BJ_API_URL`
+   - *Secret* : l'URL de l'étape précédente (`https://script.google.com/macros/s/…/exec`)
+2. **Settings → Pages → Source : GitHub Actions**.
+3. Le workflow [`pages.yml`](.github/workflows/pages.yml) publie `frontend/` à chaque push sur `main` : il injecte le secret dans `config.js` via [`scripts/injecter-config.sh`](scripts/injecter-config.sh), qui valide strictement son format. Après avoir créé ou modifié le secret, relancez le workflow (**Actions → Déploiement GitHub Pages → Run workflow**).
 
-En local : servez `frontend/` en HTTP sur `localhost` (ex. `npx serve frontend` ou l'extension Live Server).
+**Ne committez jamais l'URL réelle dans `config.js`** : un test de la CI le vérifie.
+
+En local : remplacez temporairement l'URL dans `config.js` (sans committer), puis servez `frontend/` en HTTP sur `localhost` (ex. `npx serve frontend`).
 
 ### 3. Tests
 
@@ -59,7 +66,7 @@ Node 20 ou plus, aucune installation :
 node --test "tests/*.test.js"
 ```
 
-Les 36 tests couvrent les règles, le déroulement de la table, et la sécurité de l'API : jetons forgés ou expirés, injection de formule, mises truquées, actions hors tour, carte cachée jamais envoyée, quotas, erreurs sans fuite. La CI ([`tests.yml`](.github/workflows/tests.yml)) les lance à chaque push.
+Les 37 tests couvrent les règles, le déroulement de la table, et la sécurité de l'API : jetons forgés ou expirés, injection de formule, mises truquées, actions hors tour, carte cachée jamais envoyée, quotas, erreurs sans fuite. La CI ([`tests.yml`](.github/workflows/tests.yml)) les lance à chaque push.
 
 ## Jouer
 
