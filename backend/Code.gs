@@ -55,7 +55,8 @@ var ACTIONS = {
   etat: actionEtat_,
   asseoir: function (req) { return avecTable_(req, function (t, j, now) { return tbAsseoir(t, j.pseudo_norm, j.pseudo); }); },
   quitter: function (req) { return avecTable_(req, function (t, j, now) { return tbQuitter(t, j.pseudo_norm, now); }); },
-  miser: actionMiser_,
+  miser: function (req) { return actionMiser_(req, validerMise_(req.mise)); },
+  toutMiser: function (req) { return actionMiser_(req, null); }, // all-in : tout le solde
   tirer: function (req) { return avecTable_(req, function (t, j, now) { return tbTirer(t, j.pseudo_norm, now); }); },
   rester: function (req) { return avecTable_(req, function (t, j, now) { return tbRester(t, j.pseudo_norm, now); }); },
   supprimerCompte: actionSupprimerCompte_,
@@ -139,8 +140,13 @@ function actionEtat_(req) {
   return reponseJoueur_(joueur.pseudo_norm, table);
 }
 
-function actionMiser_(req) {
-  var mise = validerMise_(req.mise);
+/**
+ * Mise `mise` (déjà validée), ou tout le solde si `mise` est null (all-in).
+ * Le montant de l'all-in est calculé ici, sous verrou, à partir du solde relu :
+ * le client n'envoie aucun montant. Il échappe à MISE_MAX (c'est le principe),
+ * pas à MISE_MIN : après renflouement, le solde vaut au moins SOLDE_INITIAL.
+ */
+function actionMiser_(req, mise) {
   return avecTable_(req, function (table, joueur, maintenant) {
     var frais = lireJoueur_(trouverLigne_(COL.pseudo_norm, joueur.pseudo_norm)); // relu sous verrou
     var solde = frais.solde;
@@ -149,12 +155,13 @@ function actionMiser_(req) {
       faillite = true;
       solde = CONFIG.SOLDE_INITIAL;
     }
+    if (mise === null) mise = solde;
     if (mise > solde) throw erreurClient_('solde_insuffisant');
     tbMiser(table, joueur.pseudo_norm, mise, maintenant);
     return [{
       cle: joueur.pseudo_norm,
       montant: (solde - frais.solde) - mise,
-      motif: faillite ? 'faillite+mise' : 'mise',
+      motif: (faillite ? 'faillite+' : '') + (req.action === 'toutMiser' ? 'all_in' : 'mise'),
       faillite: faillite
     }];
   });

@@ -616,6 +616,14 @@
       majJetonsMise();
     });
   });
+  /* All in : le serveur mise tout le solde lui-même (aucun montant n'est envoyé). */
+  $('btn-all-in').addEventListener('click', function () {
+    var v = etat.vue;
+    var montant = v && v.moi.solde >= v.regles.miseMin ? v.moi.solde + ' jetons' : 'tout votre solde';
+    if (!window.confirm('All in : miser ' + montant + ' sur cette main ?')) return;
+    agir('toutMiser', null, this);
+  });
+
   $('btn-mise-effacer').addEventListener('click', function () {
     $('champ-mise').value = '';
     majJetonsMise();

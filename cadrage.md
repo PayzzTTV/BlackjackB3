@@ -75,6 +75,7 @@ Sans code côté serveur, le navigateur devrait écrire directement dans le Shee
 | `etat` | `jeton` | Vue publique de la table + mon solde (interrogé en boucle) |
 | `asseoir` / `quitter` | `jeton` | Prendre / libérer une place |
 | `miser` | `jeton`, `mise` | Miser pendant la phase de mises |
+| `toutMiser` | `jeton` | All-in : mise tout le solde (calculé par le serveur, sans plafond `MISE_MAX`) |
 | `tirer` / `rester` | `jeton` | Jouer son tour |
 | `supprimerCompte` | `jeton` | Supprime le compte, libère le pseudo |
 | `classement` | n/a | Top 10 (pseudo + solde) |

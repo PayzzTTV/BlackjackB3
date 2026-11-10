@@ -212,3 +212,45 @@ test('journal : plusieurs mouvements d\'une même requête écrits ensemble, dan
   const joueurs = services.feuilles.get('Joueurs').lignes;
   assert.equal(Object.prototype.toString.call(joueurs[1][6]), '[object Date]', 'cree_le conservé');
 });
+
+test('all in : mise tout le solde, au-delà de MISE_MAX, montant décidé par le serveur', () => {
+  const { appel, services } = backend();
+  const a = inscrire(appel, 'Alice');
+  const b = inscrire(appel, 'Bob');
+  appel({ action: 'asseoir', jeton: a });
+  appel({ action: 'asseoir', jeton: b });
+  services.feuilles.get('Joueurs').lignes[1][4] = 2345;
+  // Un montant envoyé par le client est ignoré : seul le solde compte.
+  const r = appel({ action: 'toutMiser', jeton: a, mise: 999999 });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.data.moi.solde, 0);
+  assert.equal(r.data.table.places.find((p) => p.moi).mise, 2345);
+  assert.equal(appel({ action: 'toutMiser', jeton: a }).erreur, 'deja_mise');
+  const journal = services.feuilles.get('Journal').lignes.map((l) => l[2] + ':' + l[3]);
+  assert.ok(journal.includes("all_in:'-2345"), JSON.stringify(journal)); // ' = anti-injection de formule
+  // miser garde son plafond.
+  assert.equal(appel({ action: 'miser', jeton: b, mise: 501 }).erreur, 'mise_invalide');
+});
+
+test('all in : en faillite, le joueur est renfloué puis mise les 1 000', () => {
+  const { appel, services } = backend();
+  const a = inscrire(appel, 'Alice');
+  const b = inscrire(appel, 'Bob');
+  appel({ action: 'asseoir', jeton: a });
+  appel({ action: 'asseoir', jeton: b }); // Bob n'a pas misé : la manche ne part pas
+  services.feuilles.get('Joueurs').lignes[1][4] = 3;
+  const r = appel({ action: 'toutMiser', jeton: a });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.data.table.places.find((p) => p.moi).mise, 1000);
+  assert.equal(r.data.moi.solde, 0);
+  assert.equal(services.feuilles.get('Joueurs').lignes[1][5], 1, 'faillite comptée');
+  const journal = services.feuilles.get('Journal').lignes.map((l) => l[2]);
+  assert.ok(journal.includes('faillite+all_in'), JSON.stringify(journal));
+});
+
+test('all in : refusé hors phase de mises ou sans être assis', () => {
+  const { appel } = backend();
+  const a = inscrire(appel, 'Alice');
+  assert.equal(appel({ action: 'toutMiser', jeton: a }).erreur, 'pas_assis');
+  assert.equal(appel({ action: 'toutMiser' }).erreur, 'session_invalide');
+});
