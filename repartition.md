@@ -8,7 +8,7 @@ Le code est écrit, testé et publié sur GitHub, mais **le jeu ne tourne pas en
 |---|---|---|
 | **A** Back et déploiement Google | _à attribuer_ | `backend/`, le Google Sheet, le déploiement Apps Script |
 | **B** Front et expérience de jeu | _à attribuer_ | `frontend/` (sauf `config.js`) |
-| **C** Sécurité et dépôt GitHub | _à attribuer_ | `.github/`, `SECURITY.md`, `docs/pentest.md` |
+| **C** Sécurité et dépôt GitHub | Alexis | `.github/`, `SECURITY.md`, `docs/pentest.md` |
 | **D** Qualité, coordination, livrables | _à attribuer_ | `tests/`, `README.md`, `cadrage.md`, soutenance |
 
 > Mettez vos prénoms dans la colonne « Personne » via une PR. C'est la première PR de chacun.
