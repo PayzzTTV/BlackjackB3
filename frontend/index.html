@@ -38,6 +38,11 @@
   <p class="message" id="message" role="status" aria-live="polite" hidden></p>
   <!-- État de la connexion (serveur lent ou injoignable), mis à jour par app.js -->
   <p class="connexion" id="connexion" role="status" aria-live="polite" hidden></p>
+  <!-- Annonces réservées aux lecteurs d'écran (invisibles) : « À vous de jouer » est urgente,
+       le résultat d'une manche ne l'est pas. Le texte visible #annonce change toutes les
+       500 ms (compte à rebours) : il n'est volontairement PAS une zone live. -->
+  <p class="lecteur-ecran" id="annonce-urgente" aria-live="assertive"></p>
+  <p class="lecteur-ecran" id="annonce-polie" aria-live="polite"></p>
 
   <main>
     <!-- Premier chargement : affiché tant que le serveur n'a pas répondu -->
@@ -90,7 +95,7 @@
               <div class="compte-a-rebours" id="compte-a-rebours" hidden><span id="compte-a-rebours-barre"></span></div>
             </div>
 
-            <ul class="places" id="places"></ul>
+            <ul class="places" id="places" aria-label="Places autour de la table"></ul>
           </div>
         </section>
 
@@ -114,8 +119,8 @@
           </form>
 
           <div class="decision">
-            <button type="button" id="btn-tirer" class="bouton-principal">Tirer une carte</button>
-            <button type="button" id="btn-rester" class="bouton-secondaire">Rester</button>
+            <button type="button" id="btn-tirer" class="bouton-principal" aria-keyshortcuts="T">Tirer une carte <kbd class="raccourci" aria-hidden="true">T</kbd></button>
+            <button type="button" id="btn-rester" class="bouton-secondaire" aria-keyshortcuts="R">Rester <kbd class="raccourci" aria-hidden="true">R</kbd></button>
           </div>
 
           <button type="button" id="btn-quitter" class="bouton-lien">Quitter la table</button>
@@ -170,6 +175,7 @@
       <li>Sous 10 jetons, votre solde est remis à 1 000 à la mise suivante.</li>
       <li>Quitter la table pendant votre main abandonne la mise. Avant la distribution, elle est remboursée.</li>
       <li>Après 3 manches sans miser, vous êtes retiré de la table.</li>
+      <li>Au clavier : <kbd>T</kbd> pour tirer une carte, <kbd>R</kbd> pour rester, quand c'est votre tour. Tab parcourt les commandes.</li>
       <li>Votre compte n'existe que dans ce navigateur (cookie de 30 jours). « Supprimer mon compte » efface vos jetons et libère votre pseudo.</li>
     </ul>
   </dialog>

@@ -511,3 +511,23 @@ button.en-cours::after {
   .bouton-aide { order: 3; margin-right: 0; }
   .aide { padding: 1.1rem 1.1rem 1.3rem; }
 }
+
+/* ---------- 14. Accessibilité ---------- */
+
+/* Raccourci clavier affiché sur les boutons Tirer / Rester (masqué sur écran tactile) */
+.raccourci {
+  display: inline-block; margin-left: .45rem; padding: 0 .35rem;
+  font: inherit; font-size: .75rem; line-height: 1.4;
+  border: 1px solid currentColor; border-radius: 4px; opacity: .7;
+}
+@media (hover: none) { .raccourci { display: none; } }
+.aide kbd { padding: 0 .3rem; border: 1px solid #a8987c; border-radius: 4px; font: inherit; font-size: .9em; }
+
+/* Texte des places libres un peu plus contrasté */
+.place.libre { color: rgba(244, 239, 226, .66); }
+
+/* Écrans tactiles : les commandes texte atteignent 44 px de hauteur */
+@media (pointer: coarse) {
+  .bouton-lien, .bouton-aide { min-height: 44px; padding-left: .6rem; padding-right: .6rem; }
+  .mise-saisie input { min-height: 44px; }
+}
