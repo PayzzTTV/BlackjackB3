@@ -36,6 +36,8 @@
     jeton: null, vue: null, echeance: null, requeteEnCours: false, minuteur: null,
     // Connexion : nombre de requêtes lentes en cours, et dernier sondage échoué (serveur injoignable).
     lentes: 0, horsLigne: false, messageConnexion: false,
+    // Numérotation des requêtes qui renvoient une vue de la table (voir demanderVue).
+    numeroEmis: 0, numeroAffiche: 0,
     // Nombre de cartes déjà affichées par main, pour n'animer que les nouvelles (voir marquerNouvelles).
     cartesVues: { manche: null, mains: {} },
     // Durée totale du décompte en cours, pour dessiner la barre (le serveur ne donne que le restant).
@@ -123,6 +125,26 @@
       });
     promesse.then(terminer, terminer);
     return promesse;
+  }
+
+  /**
+   * Comme api(), pour les actions qui renvoient une vue de la table (etat, asseoir, miser...).
+   *
+   * Problème corrigé (« course sondage / action ») : un sondage parti AVANT un clic sur « Tirer »
+   * peut revenir APRÈS la réponse de « Tirer ». Sans précaution, cette vieille vue écrasait
+   * l'affichage et la nouvelle carte disparaissait jusqu'au sondage suivant.
+   *
+   * Solution : chaque requête reçoit un numéro croissant au départ. Une réponse plus ancienne que
+   * la dernière vue affichée est périmée : la promesse renvoie alors null et rien n'est affiché.
+   * @return {Promise<Object|null>} la vue, ou null si elle est périmée
+   */
+  function demanderVue(action, donnees) {
+    var numero = ++etat.numeroEmis;
+    return api(action, donnees).then(function (data) {
+      if (numero < etat.numeroAffiche) return null; // une réponse plus récente est déjà affichée
+      etat.numeroAffiche = numero;
+      return data;
+    });
   }
 
   /** Vrai si l'erreur vient du transport (réseau, délai) et pas d'un refus du serveur. */
@@ -415,10 +437,10 @@
   function sonder() {
     if (!etat.jeton || etat.requeteEnCours || document.hidden) return planifier();
     etat.requeteEnCours = true;
-    api('etat')
+    demanderVue('etat')
       .then(function (data) {
         connexionRetablie();
-        afficherJeu(data);
+        if (data) afficherJeu(data);
       }, function (err) {
         if (!estErreurConnexion(err)) return gererErreur(err);
         // Panne réseau pendant le sondage : bandeau discret, le sondage continue tout seul.
@@ -456,10 +478,10 @@
     boutons.forEach(function (b) { b.disabled = true; });
     var liberer = occuper(bouton);
     afficherMessage('');
-    return api(action, donnees)
+    return demanderVue(action, donnees)
       .then(function (data) {
         connexionRetablie();
-        afficherJeu(data);
+        if (data) afficherJeu(data);
       }, gererErreur)
       .then(function () {
         liberer();
