@@ -122,7 +122,7 @@ Le navigateur **affiche** et **transmet des intentions**. Toutes les décisions 
 - Le Sheet n'est partagé avec personne ; seul le script (exécuté sous l'identité du propriétaire) y accède.
 - **Aucun secret dans le dépôt.** L'URL de la Web App est stockée dans le **GitHub Secret `BJ_API_URL`** et injectée dans `config.js` uniquement au déploiement. L'injection passe par une variable d'environnement (pas d'interpolation dans le script, donc pas d'injection de commande) et une liste blanche stricte du format. Un test de la CI échoue si une vraie URL est commitée. Il n'y a ni clé d'API ni compte de service.
 - *Remarque :* une fois publiée, l'URL est forcément lisible dans le `config.js` servi aux navigateurs, car c'est l'adresse que le jeu appelle. Le secret évite qu'elle traîne dans le code source et l'historique git, et permet de la changer sans commit. La sécurité de l'API, elle, ne repose pas sur le secret de cette URL : elle repose sur les contrôles côté serveur (§4.1 à 4.3).
-- Fonctions d'administration (`initialiser`, `reinitialiserTable`) lançables uniquement depuis l'éditeur Apps Script.
+- Fonctions d'administration (`initialiser`, `reinitialiserTable`, `viderCacheJoueurs`) lançables uniquement depuis l'éditeur Apps Script.
 - Dependabot surveille les GitHub Actions ; la CI exécute les tests à chaque push.
 
 ### 4.5 Limites connues (transparence)

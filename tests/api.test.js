@@ -48,7 +48,7 @@ test('requêtes malformées rejetées sans détail technique', () => {
   assert.equal(appel('null').erreur, 'requete_invalide');
   assert.equal(appel({ pseudo: 'x' }).erreur, 'requete_invalide');
   assert.equal(appel({ action: 'x'.repeat(2000) }).erreur, 'requete_invalide');
-  for (const a of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'initialiser', 'reinitialiserTable']) {
+  for (const a of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'initialiser', 'reinitialiserTable', 'viderCacheJoueurs']) {
     assert.equal(appel({ action: a }).erreur, 'action_inconnue', a);
   }
   assert.equal(JSON.parse(ctx.doPost({}).contenu).erreur, 'requete_invalide');
@@ -59,19 +59,30 @@ test('erreur interne : message générique, aucune trace', () => {
   const { appel, ctx } = backend();
   const jeton = inscrire(appel, 'Alice');
   ctx.SpreadsheetApp = { getActiveSpreadsheet: () => { throw new Error('secret interne /chemin'); } };
-  const r = appel({ action: 'etat', jeton });
+  const r = appel({ action: 'asseoir', jeton }); // etat ne lit plus le Sheet (fiche en cache)
   assert.equal(r.erreur, 'erreur_serveur');
   assert.ok(!JSON.stringify(r).includes('secret'));
 });
 
 test('sessions : jeton absent, malformé, inconnu ou expiré refusé', () => {
-  const { appel, services } = backend();
+  const { appel, services, ctx } = backend();
   const jeton = inscrire(appel, 'Alice');
   for (const j of [undefined, '', 'abc', jeton.toUpperCase(), jeton + '0', 'f'.repeat(64), 123, { $ne: null }]) {
     assert.equal(appel({ action: 'etat', jeton: j }).erreur, 'session_invalide', String(j));
   }
   assert.equal(appel({ action: 'etat', jeton }).ok, true);
-  services.feuilles.get('Joueurs').lignes[1][3] = Date.now() - 1; // expiration
+  services.feuilles.get('Joueurs').lignes[1][3] = Date.now() - 1; // expiration (à la main)
+  ctx.viderCacheJoueurs(); // procédure documentée après une modification manuelle du Sheet
+  assert.equal(appel({ action: 'etat', jeton }).erreur, 'session_invalide');
+});
+
+test('sessions : une fiche en cache expirée est refusée aussi', () => {
+  const { appel, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  const cle = [...services.cache.keys()].find((k) => k.startsWith('j:'));
+  const fiche = JSON.parse(services.cache.get(cle));
+  fiche.jeton_expire = Date.now() - 1;
+  services.cache.set(cle, JSON.stringify(fiche));
   assert.equal(appel({ action: 'etat', jeton }).erreur, 'session_invalide');
 });
 
@@ -253,4 +264,71 @@ test('all in : refusé hors phase de mises ou sans être assis', () => {
   const a = inscrire(appel, 'Alice');
   assert.equal(appel({ action: 'toutMiser', jeton: a }).erreur, 'pas_assis');
   assert.equal(appel({ action: 'toutMiser' }).erreur, 'session_invalide');
+});
+
+/* ---------- Fiches joueur en cache : etat sans Sheet ---------- */
+
+test('etat : aucun accès au Sheet quand la fiche est en cache', () => {
+  const { appel, ctx } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  appel({ action: 'asseoir', jeton });
+  ctx.SpreadsheetApp = { getActiveSpreadsheet: () => { throw new Error('Sheet lu pendant le sondage'); } };
+  for (let i = 0; i < 3; i++) {
+    const r = appel({ action: 'etat', jeton });
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.data.moi.solde, 1000);
+    assert.equal(r.data.moi.pseudo, 'Alice');
+  }
+});
+
+test('etat : cache vidé, le Sheet est relu puis la fiche remise en cache', () => {
+  const { appel, ctx, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  services.cache.clear();
+  assert.equal(appel({ action: 'etat', jeton }).data.moi.solde, 1000);
+  ctx.SpreadsheetApp = { getActiveSpreadsheet: () => { throw new Error('Sheet relu'); } };
+  assert.equal(appel({ action: 'etat', jeton }).ok, true, 'fiche remise en cache au sondage précédent');
+});
+
+test('etat : verrou occupé et cache vide, on lit le Sheet sans remplir le cache', () => {
+  const { appel, ctx, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  services.cache.clear();
+  ctx.LockService = { getScriptLock: () => ({ tryLock: () => false, releaseLock() {} }) };
+  assert.equal(appel({ action: 'etat', jeton }).data.moi.solde, 1000);
+  assert.ok(![...services.cache.keys()].some((k) => k.startsWith('j:')), 'fiche écrite hors verrou');
+});
+
+test('etat : le solde affiché suit le Sheet après mises et gains (tous les joueurs)', () => {
+  const { appel, services } = backend();
+  const jetons = ['Alice', 'Bob', 'Chloe'].map((p) => inscrire(appel, p));
+  jetons.forEach((jeton) => appel({ action: 'asseoir', jeton }));
+  for (let manche = 0; manche < 5; manche++) {
+    jetons.forEach((jeton) => appel({ action: 'miser', jeton, mise: 50 }));
+    // Chacun reste à son tour : la manche se règle et crédite les gagnants.
+    for (let garde = 0; garde < 10; garde++) {
+      const t = JSON.parse(services.proprietes.get('TABLE'));
+      if (t.phase !== 'jeu') break;
+      const j = jetons.find((x) => appel({ action: 'etat', jeton: x }).data.table.monTour);
+      appel({ action: 'rester', jeton: j });
+    }
+    const lignes = services.feuilles.get('Joueurs').lignes;
+    jetons.forEach((jeton, i) => {
+      assert.equal(appel({ action: 'etat', jeton }).data.moi.solde, lignes[i + 1][4], 'manche ' + manche + ', joueur ' + i);
+    });
+    // Fin de manche écoulée : nouvelle manche.
+    const t = JSON.parse(services.proprietes.get('TABLE'));
+    t.echeance = Date.now() - 1;
+    services.proprietes.set('TABLE', JSON.stringify(t));
+    appel({ action: 'etat', jeton: jetons[0] });
+  }
+});
+
+test('suppression de compte : la fiche quitte le cache, le jeton ne marche plus', () => {
+  const { appel, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  assert.equal(appel({ action: 'etat', jeton }).ok, true);
+  assert.equal(appel({ action: 'supprimerCompte', jeton }).ok, true);
+  assert.ok(![...services.cache.keys()].some((k) => k.startsWith('j:')));
+  assert.equal(appel({ action: 'etat', jeton }).erreur, 'session_invalide');
 });
