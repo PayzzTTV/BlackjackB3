@@ -6,7 +6,8 @@
  * backend/Code.gs ({ ok, data } ou { ok:false, erreur, message }).
  *
  * - Chargé uniquement par demo.html, AVANT app.js (index.html ne le charge jamais).
- * - Deux joueurs fictifs (bots) occupent la table pour voir une vraie manche.
+ * - La table et le classement démarrent vides : aucun joueur fictif, seuls les vrais
+ *   joueurs (onglets) apparaissent.
  * - Un petit panneau permet de simuler un serveur lent ou injoignable,
  *   pour tester les états de chargement.
  * - L'état est gardé dans localStorage (clé bj_demo_etat) : un rechargement de page
@@ -35,18 +36,17 @@
     DEMO: true
   });
 
-  /** Mêmes valeurs que CONFIG (Code.gs) et TB (Table.gs), durées raccourcies pour la démo. */
+  /** Mêmes valeurs que CONFIG (Code.gs) et TB (Table.gs), durées comprises. */
   var R = {
     SOLDE_INITIAL: 1000,
     MISE_MIN: 10,
     MISE_MAX: 500,
     SESSION_JOURS: 30,
     PLACES_MAX: 5,
-    DUREE_MISES_MS: 10000,
-    DUREE_TOUR_MS: 20000,
-    DUREE_FIN_MS: 6000,
-    MANCHES_INACTIF_MAX: 3,
-    DELAI_BOT_MS: 1400 // temps de « réflexion » d'un bot
+    DUREE_MISES_MS: 8000,
+    DUREE_TOUR_MS: 15000,
+    DUREE_FIN_MS: 5000,
+    MANCHES_INACTIF_MAX: 3
   };
 
   var MESSAGES = {
@@ -129,32 +129,41 @@
 
   /* ---------------- État du faux serveur ---------------- */
 
-  /** Table neuve avec deux bots assis, pour que la démo soit vivante tout de suite. */
+  /** Table neuve et vide : aucun joueur fictif, ni à table ni au classement. */
   function etatInitial() {
-    var e = {
-      joueurs: {
-        'bot-lea': { pseudo: 'Lea_92', solde: 1450, bot: true },
-        'bot-marco': { pseudo: 'Marco', solde: 820, bot: true }
-      },
-      // Joueurs hors table, pour remplir le classement.
-      figurants: [
-        { pseudo: 'Nadia_B', solde: 2310 }, { pseudo: 'Kev77', solde: 1880 },
-        { pseudo: 'Ines', solde: 1205 }, { pseudo: 'Tom_RER', solde: 640 }, { pseudo: 'Sacha', solde: 300 }
-      ],
+    return {
+      joueurs: {},
       table: {
         phase: 'mises', manche: 1, places: [], croupier: [], paquet: [],
-        tour: null, echeance: null, botAgitA: null
+        tour: null, echeance: null
       }
     };
-    asseoir(e.table, 'bot-lea', 'Lea_92');
-    asseoir(e.table, 'bot-marco', 'Marco');
+  }
+
+  /**
+   * Retire les joueurs fictifs d'un état sauvegardé par une ancienne version de la démo :
+   * bots (joueurs marqués `bot`, leurs places à table, champ botAgitA) et figurants du classement.
+   */
+  function purgerFictifs(e) {
+    delete e.figurants;
+    Object.keys(e.joueurs || {}).forEach(function (k) { if (e.joueurs[k].bot) delete e.joueurs[k]; });
+    var t = e.table;
+    if (!t) return e;
+    delete t.botAgitA;
+    var avant = t.places.length;
+    t.places = t.places.filter(function (p) { return e.joueurs[p.cle]; });
+    if (t.tour && !e.joueurs[t.tour]) t.tour = null; // le tour passera au suivant via avancer()
+    if (t.places.length === 0 && avant > 0) {
+      // Plus personne : on repart sur une manche propre en phase de mises.
+      t.phase = 'mises'; t.croupier = []; t.paquet = []; t.tour = null; t.echeance = null;
+    }
     return e;
   }
 
   function charger() {
     try {
       var brut = window.localStorage.getItem(CLE_STOCKAGE);
-      if (brut) return JSON.parse(brut);
+      if (brut) return purgerFictifs(JSON.parse(brut));
     } catch (e) { /* stockage indisponible : on repart de zéro */ }
     return etatInitial();
   }
@@ -220,7 +229,6 @@
     if (tot > 21) { p.statut = 'saute'; return passerAuSuivant(t, now); }
     if (tot === 21) { p.statut = 'reste'; return passerAuSuivant(t, now); }
     t.echeance = now + R.DUREE_TOUR_MS;
-    t.botAgitA = now + R.DELAI_BOT_MS;
   }
 
   function rester(t, cle, now) {
@@ -248,7 +256,6 @@
       if (t.places[i].statut === 'joue') {
         t.tour = t.places[i].cle;
         t.echeance = now + R.DUREE_TOUR_MS;
-        t.botAgitA = now + R.DELAI_BOT_MS;
         return;
       }
     }
@@ -274,8 +281,7 @@
 
   function nouvelleManche(t, now) {
     t.places.forEach(function (p) { p.inactif = p.mise > 0 ? 0 : p.inactif + 1; });
-    // Les bots ne sont jamais expulsés pour inactivité.
-    t.places = t.places.filter(function (p) { return S.joueurs[p.cle] && (S.joueurs[p.cle].bot || p.inactif < R.MANCHES_INACTIF_MAX); });
+    t.places = t.places.filter(function (p) { return S.joueurs[p.cle] && p.inactif < R.MANCHES_INACTIF_MAX; });
     t.places.forEach(function (p) { p.mise = 0; p.main = []; p.statut = 'attente'; p.resultat = null; p.gain = 0; });
     t.phase = 'mises';
     t.manche += 1;
@@ -283,27 +289,11 @@
     t.paquet = [];
     t.tour = null;
     t.echeance = null;
-    t.botAgitA = now + R.DELAI_BOT_MS;
-  }
-
-  /** Décisions des bots : ils misent en début de manche et tirent tant qu'ils ont moins de 16. */
-  function fairJouerLesBots(t, now) {
-    if (t.botAgitA !== null && now < t.botAgitA) return;
-    if (t.phase === 'mises') {
-      t.places.forEach(function (p) {
-        var j = S.joueurs[p.cle];
-        if (j && j.bot && p.statut === 'attente') miser(t, p.cle, 10 * (2 + tirage(9)), now);
-      });
-    } else if (t.phase === 'jeu' && t.tour && S.joueurs[t.tour] && S.joueurs[t.tour].bot) {
-      var p = place(t, t.tour);
-      if (total(p.main) < 16) tirer(t, p.cle, now); else rester(t, p.cle, now);
-    }
   }
 
   /** Applique tout ce qui est dû à l'instant `now` (équivalent de tbAvancer). */
   function avancer(t, now) {
     for (var garde = 0; garde < 10; garde++) {
-      fairJouerLesBots(t, now);
       var misees = t.places.filter(function (p) { return p.statut === 'mise'; }).length;
       if (t.phase === 'mises' && misees > 0 && (misees === t.places.length || now >= t.echeance)) distribuer(t, now);
       else if (t.phase === 'jeu' && (t.tour === null || now >= t.echeance)) {
@@ -345,7 +335,7 @@
   /* ---------------- Routage des actions (équivalent de doPost) ---------------- */
 
   function authentifier(jeton) {
-    if (typeof jeton !== 'string' || !S.joueurs[jeton] || S.joueurs[jeton].bot) throw erreur('session_invalide');
+    if (typeof jeton !== 'string' || !S.joueurs[jeton]) throw erreur('session_invalide');
     return jeton;
   }
 
@@ -363,15 +353,14 @@
         var pseudo = req.pseudo;
         if (typeof pseudo !== 'string' || !/^[A-Za-z0-9_]{3,16}$/.test(pseudo) ||
             PSEUDOS_RESERVES.indexOf(pseudo.toLowerCase()) >= 0) throw erreur('pseudo_invalide');
-        var pris = Object.keys(S.joueurs).some(function (k) { return S.joueurs[k].pseudo.toLowerCase() === pseudo.toLowerCase(); }) ||
-          S.figurants.some(function (f) { return f.pseudo.toLowerCase() === pseudo.toLowerCase(); });
+        var pris = Object.keys(S.joueurs).some(function (k) { return S.joueurs[k].pseudo.toLowerCase() === pseudo.toLowerCase(); });
         if (pris) throw erreur('pseudo_pris');
         var jeton = jetonAleatoire();
         S.joueurs[jeton] = { pseudo: pseudo, solde: R.SOLDE_INITIAL };
         return { jeton: jeton, pseudo: pseudo, joursValidite: R.SESSION_JOURS };
       }
       case 'classement': {
-        var tous = S.figurants.concat(Object.keys(S.joueurs).map(function (k) { return S.joueurs[k]; }));
+        var tous = Object.keys(S.joueurs).map(function (k) { return S.joueurs[k]; });
         return {
           top: tous.map(function (j) { return { pseudo: j.pseudo, solde: j.solde }; })
             .sort(function (a, b) { return b.solde - a.solde; }).slice(0, 10)

@@ -22,7 +22,7 @@ Responsable : **D**, avec **C** pour la démonstration d'attaque. Durée visée 
 1. **Titre** : Blackjack B3, les 4 prénoms et rôles, URL du site.
 2. **Le besoin** : 3 fonctionnalités (F1 pseudo, F2 table à 5, F3 top 10) et l'exigence « personne ne triche ».
 3. **Architecture** : le schéma du cadrage, redessiné.
-4. **Une manche** : le cycle mises → jeu → fin, avec les délais (15 s, 30 s par tour, 8 s).
+4. **Une manche** : le cycle mises → jeu → fin, avec les délais (8 s pour miser, 15 s par tour, 5 s de résultats).
 5. **Le client n'a aucune autorité** : tableau menace → mesure (cadrage §4.1), 4 lignes maximum.
 6. **Sessions sans mot de passe** : jeton de 244 bits, seule l'empreinte SHA-256 est stockée, cookie `__Host-` `Secure` `SameSite=Strict`.
 7. **Entrées et sorties** : pseudo en liste blanche, neutralisation `= + - @`, aucun `innerHTML`, CSP + Trusted Types.

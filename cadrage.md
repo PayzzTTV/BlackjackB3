@@ -15,9 +15,9 @@ Un **blackjack multijoueur** jouable dans le navigateur, **volontairement simple
 ### Déroulement d'une manche
 
 ```
- mises ──(tous ont misé, ou 15 s après la 1re mise)──▶ jeu ──(tous ont joué)──▶ fin ──(8 s)──▶ mises
-                                                       │
-                                     chaque joueur à son tour, 30 s max
+ mises ──(tous ont misé, ou 8 s après la 1re mise)──▶ jeu ──(tous ont joué)──▶ fin ──(5 s)──▶ mises
+                                                      │
+                                     chaque joueur à son tour, 15 s max
                                      (au-delà, il « reste » automatiquement)
 ```
 
@@ -89,7 +89,7 @@ Le navigateur **affiche** et **transmet des intentions**. Toutes les décisions 
 | Voir la carte cachée ou les prochaines cartes | Paquet et mains conservés côté serveur. La vue envoyée au client exclut le paquet et la 2e carte du croupier jusqu'à la fin de la manche (testé). |
 | Modifier son solde, ses gains, sa mise | Soldes calculés et écrits uniquement par le serveur. La mise est **débitée dès qu'elle est posée**. |
 | Jouer à la place d'un autre / hors de son tour | Chaque action est rattachée au jeton de session ; le serveur vérifie que c'est bien le tour de ce joueur. |
-| Fuir une main perdante | Quitter pendant sa main = mise perdue. Inaction = « rester » automatique après 30 s. |
+| Fuir une main perdante | Quitter pendant sa main = mise perdue. Inaction = « rester » automatique après 15 s. |
 | Mélange prévisible | Aléa issu de `Utilities.getUuid()` (UUID v4, générateur cryptographique) passé dans SHA-256, puis **Fisher-Yates avec tirage par rejet** (aucun biais modulo, testé par un khi²). `Math.random()` n'est jamais utilisé. |
 | Double dépense / requêtes simultanées | Toute écriture passe sous `LockService` (verrou global). La table est sauvegardée **avant** les crédits : une panne peut faire perdre un gain (tracé au Journal) mais jamais créditer deux fois. |
 
