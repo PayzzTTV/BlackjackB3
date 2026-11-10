@@ -38,6 +38,9 @@
     lentes: 0, horsLigne: false, messageConnexion: false,
     // Numérotation des requêtes qui renvoient une vue de la table (voir demanderVue).
     numeroEmis: 0, numeroAffiche: 0,
+    // Vrai quand le focus clavier est dans le plateau de commandes (voir retablirFocus).
+    focusDansCommandes: false,
+    monTourAvant: false, // pour n'annoncer « À vous de jouer » qu'au début du tour
     // Nombre de cartes déjà affichées par main, pour n'animer que les nouvelles (voir marquerNouvelles).
     cartesVues: { manche: null, mains: {} },
     // Durée totale du décompte en cours, pour dessiner la barre (le serveur ne donne que le restant).
@@ -283,7 +286,10 @@
       return li;
     }
     if (p.moi) li.classList.add('moi');
-    if (t.tour === p.pseudo) li.classList.add('actif');
+    if (t.tour === p.pseudo) {
+      li.classList.add('actif');
+      li.setAttribute('aria-current', 'true'); // « joueur en cours » pour les lecteurs d'écran
+    }
 
     var tete = el('div', 'tete');
     var nom = el('span', 'pseudo', p.pseudo);
@@ -355,7 +361,7 @@
     for (var i = 0; i < t.placesMax; i++) liste.appendChild(elementPlace(t.places[i], t));
 
     // Commandes
-    var moi = t.places.filter(function (x) { return x.moi; })[0];
+    var moi = t.places.filter(function (x) { return x.moi; })[0] || null;
     $('btn-asseoir').hidden = t.assis;
     $('btn-asseoir').disabled = t.places.length >= t.placesMax;
     $('btn-quitter').hidden = !t.assis;
@@ -374,6 +380,49 @@
     if (etat.decompte.cle !== cleDecompte) etat.decompte = { cle: cleDecompte, total: null };
     if (t.secondesRestantes !== null) etat.decompte.total = Math.max(etat.decompte.total || 0, t.secondesRestantes);
     rafraichirAnnonce();
+    annoncerAuxLecteurs(t, moi, phaseAvant, etat.monTourAvant);
+    etat.monTourAvant = t.monTour;
+    retablirFocus(t);
+  }
+
+  /**
+   * Lecteurs d'écran : annonce les moments importants UNE fois, au changement (pas à chaque sondage).
+   * - début de mon tour : zone « assertive », avec mon total et la carte visible du croupier ;
+   * - fin de manche : mon résultat, en zone « polite ».
+   */
+  function annoncerAuxLecteurs(t, moi, phaseAvant, monTourAvant) {
+    if (t.monTour && !monTourAvant && moi) {
+      dire('annonce-urgente', 'À vous de jouer. Votre total : ' + moi.total + '. Croupier : ' + t.croupier.total +
+        '. Touche T pour tirer, R pour rester.');
+    }
+    if (t.phase === 'fin' && phaseAvant !== null && phaseAvant !== 'fin' && moi && moi.resultat) {
+      dire('annonce-polie', 'Manche terminée. ' + libelleResultat(moi) + '. Croupier : ' + t.croupier.total + '.');
+    }
+  }
+
+  /** Écrit dans une zone live. Vidée d'abord pour qu'un texte identique soit relu. */
+  function dire(id, texte) {
+    var zone = $(id);
+    zone.textContent = '';
+    setTimeout(function () { zone.textContent = texte; }, 50);
+  }
+
+  /** Vrai si l'élément est affiché et utilisable (pas hidden, pas disabled, pas dans un parent caché). */
+  function estUtilisable(n) {
+    return n && !n.disabled && n.offsetParent !== null;
+  }
+
+  /**
+   * Clavier : quand le bouton qui avait le focus disparaît (ex. « Tirer » à la fin de mon tour),
+   * le navigateur renvoie le focus au début de la page. On le remet sur la commande la plus utile.
+   */
+  function retablirFocus(t) {
+    var actif = document.activeElement;
+    if (!etat.focusDansCommandes || estUtilisable(actif) && actif !== document.body) return;
+    var candidats = t.monTour ? ['btn-tirer'] : ['champ-mise', 'btn-asseoir', 'btn-quitter'];
+    for (var i = 0; i < candidats.length; i++) {
+      if (estUtilisable($(candidats[i]))) { $(candidats[i]).focus(); return; }
+    }
   }
 
   /** Met à jour la barre de compte à rebours sous l'annonce (appelé toutes les 500 ms). */
@@ -592,6 +641,33 @@
       chargerClassement();
     }, gererErreur).then(liberer);
   });
+
+  /* Clavier : T = tirer, R = rester, seulement pendant mon tour et hors champ de saisie / fenêtre d'aide. */
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    var cible = e.target;
+    if (cible && (cible.tagName === 'INPUT' || cible.tagName === 'SELECT' || cible.tagName === 'TEXTAREA')) return;
+    if ($('aide').open) return;
+    var touche = e.key.toLowerCase();
+    var bouton = touche === 't' ? $('btn-tirer') : touche === 'r' ? $('btn-rester') : null;
+    if (bouton && estUtilisable(bouton)) {
+      e.preventDefault();
+      bouton.focus();
+      bouton.click();
+    }
+  });
+
+  // Suivi du focus dans le plateau, pour retablirFocus().
+  document.querySelector('.commandes').addEventListener('focusin', function () { etat.focusDansCommandes = true; });
+  document.addEventListener('focusin', function (e) {
+    if (!e.target.closest('.commandes')) etat.focusDansCommandes = false;
+  });
+
+  /* Aide intégrée : <dialog> natif, qui gère seul le piège du focus et la touche Échap. */
+  $('btn-aide').addEventListener('click', function () { $('aide').showModal(); });
+  $('btn-aide-fermer').addEventListener('click', function () { $('aide').close(); });
+  // Clic sur le fond assombri (en dehors du contenu) : ferme l'aide.
+  $('aide').addEventListener('click', function (e) { if (e.target === this) this.close(); });
 
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && etat.jeton) sonder();
