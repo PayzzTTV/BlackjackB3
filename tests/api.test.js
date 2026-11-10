@@ -165,6 +165,40 @@ test('limitation : requêtes par session et inscriptions globales', () => {
   assert.equal(refus, 'trop_de_requetes');
 });
 
+test('limitation : un joueur sous le quota n\'est jamais bloqué, même sur la durée', () => {
+  // Régression : le compteur ne retombait jamais tant que le client restait actif
+  // (put() repousse l'expiration), et un joueur honnête était bloqué après 90 sondages.
+  const { appel, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  for (let i = 0; i < 200; i++) { // 10 min à 1 sondage / 3 s = 20 req/min, quota 90/min
+    const r = appel({ action: 'etat', jeton });
+    assert.equal(r.ok, true, 'sondage ' + i + ' refusé : ' + r.erreur);
+    services.horloge.avancer(3000);
+  }
+});
+
+test('limitation : le blocage est levé à la fenêtre suivante', () => {
+  const { appel, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  let bloque = false;
+  for (let i = 0; i < 100 && !bloque; i++) bloque = appel({ action: 'etat', jeton }).erreur === 'trop_de_requetes';
+  assert.ok(bloque);
+  services.horloge.avancer(61000);
+  assert.equal(appel({ action: 'etat', jeton }).ok, true);
+});
+
+test('limitation : inscriptions étalées acceptées, pseudo déjà pris non décompté', () => {
+  const { appel, services } = backend();
+  for (let i = 0; i < 40; i++) { // 1 inscription / 10 min = 6/h, quota 30/h
+    assert.equal(appel({ action: 'inscription', pseudo: 'eleve_' + i }).ok, true, 'inscription ' + i);
+    services.horloge.avancer(600000);
+  }
+  const { appel: appel2 } = backend();
+  inscrire(appel2, 'Alice');
+  for (let i = 0; i < 40; i++) assert.equal(appel2({ action: 'inscription', pseudo: 'alice' }).erreur, 'pseudo_pris');
+  assert.equal(appel2({ action: 'inscription', pseudo: 'Bob' }).ok, true, 'quota épuisé par des pseudos déjà pris');
+});
+
 test('suppression du compte : session révoquée, pseudo libéré, table quittée', () => {
   const { appel } = backend();
   const jeton = inscrire(appel, 'Alice');

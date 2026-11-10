@@ -79,11 +79,31 @@ function creerServices() {
     insertSheet: (n) => { const f = new FausseFeuille(n); feuilles.set(n, f); return f; }
   };
   const proprietes = new Map();
+  // Horloge pilotable : horloge.avancer(ms) décale Date.now() et new Date() pour le back.
+  const horloge = { decalageMs: 0, avancer(ms) { this.decalageMs += ms; } };
+  const maintenant = () => Date.now() + horloge.decalageMs;
+  class FausseDate extends Date {
+    constructor(...args) { if (args.length) super(...args); else super(maintenant()); }
+    static now() { return maintenant(); }
+  }
+  // Comme CacheService : chaque entrée expire, et put() repose l'expiration.
+  // `cache` garde les valeurs (les tests y lisent et y écrivent), `expirations` les échéances.
   const cache = new Map();
+  const expirations = new Map();
+  const DUREE_DEFAUT_S = 600;
+  const vivant = (k) => {
+    if (!cache.has(k)) return false;
+    if (expirations.has(k) && expirations.get(k) <= maintenant()) { cache.delete(k); expirations.delete(k); return false; }
+    return true;
+  };
+  const poser = (k, v, dureeS) => { cache.set(k, String(v)); expirations.set(k, maintenant() + (dureeS || DUREE_DEFAUT_S) * 1000); };
+  const oter = (k) => { cache.delete(k); expirations.delete(k); };
   return {
     feuilles,
     proprietes,
     cache,
+    horloge,
+    Date: FausseDate,
     SpreadsheetApp: { getActiveSpreadsheet: () => classeur },
     PropertiesService: {
       getScriptProperties: () => ({
@@ -93,12 +113,12 @@ function creerServices() {
     },
     CacheService: {
       getScriptCache: () => ({
-        get: (k) => (cache.has(k) ? cache.get(k) : null),
-        getAll: (cles) => Object.fromEntries(cles.filter((k) => cache.has(k)).map((k) => [k, cache.get(k)])),
-        put: (k, v) => { cache.set(k, String(v)); },
-        putAll: (valeurs) => { Object.entries(valeurs).forEach(([k, v]) => cache.set(k, String(v))); },
-        remove: (k) => { cache.delete(k); },
-        removeAll: (cles) => { cles.forEach((k) => cache.delete(k)); }
+        get: (k) => (vivant(k) ? cache.get(k) : null),
+        getAll: (cles) => Object.fromEntries(cles.filter(vivant).map((k) => [k, cache.get(k)])),
+        put: poser,
+        putAll: (valeurs, dureeS) => { Object.entries(valeurs).forEach(([k, v]) => poser(k, v, dureeS)); },
+        remove: oter,
+        removeAll: (cles) => { cles.forEach(oter); }
       })
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },

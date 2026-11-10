@@ -108,8 +108,10 @@ function actionInscription_(req) {
   if (PSEUDOS_RESERVES.indexOf(norm) >= 0) throw erreurClient_('pseudo_pris');
 
   return avecVerrou_(function () {
-    limiter_('inscriptions', CONFIG.MAX_INSCRIPTIONS_HEURE, 3600);
     if (trouverLigne_(COL.pseudo_norm, norm) > 0) throw erreurClient_('pseudo_pris');
+    // Décompté APRÈS le contrôle du pseudo : un refus « déjà pris » ne crée aucun compte
+    // et ne doit pas épuiser le quota des vraies inscriptions.
+    limiter_(cleQuota_('inscriptions', 3600), CONFIG.MAX_INSCRIPTIONS_HEURE, 3600);
 
     var jeton = genererJeton_();
     var maintenant = new Date();
@@ -328,9 +330,9 @@ function genererJeton_() {
 function authentifier_(jeton, remplirCache) {
   if (typeof jeton !== 'string' || !/^[0-9a-f]{64}$/.test(jeton)) throw erreurClient_('session_invalide');
   var empreinte = sha256Hex_(jeton);
-  var cleLimite = 'r:' + empreinte;
-  var lu = CacheService.getScriptCache().getAll(['rl:' + cleLimite, cleFiche_(empreinte)]);
-  limiter_(cleLimite, CONFIG.MAX_REQUETES_MINUTE, 60, lu['rl:' + cleLimite] || null); // absent = 0
+  var cleLimite = cleQuota_('r:' + empreinte, 60);
+  var lu = CacheService.getScriptCache().getAll([cleLimite, cleFiche_(empreinte)]);
+  limiter_(cleLimite, CONFIG.MAX_REQUETES_MINUTE, 60, lu[cleLimite] || null); // absent = 0
 
   var fiche = lireFiche_(lu[cleFiche_(empreinte)]);
   if (fiche && fiche.jeton_hash === empreinte && !renouvellementDu_(fiche)) return fiche;
@@ -587,12 +589,28 @@ function avecVerrou_(fn, attenteMs) {
   }
 }
 
-/** Limiteur à fenêtre glissante via CacheService (Apps Script ne fournit pas l'IP). */
-function limiter_(cle, max, fenetreS, dejaLu) {
+/**
+ * Clé du compteur de quota pour la fenêtre de temps en cours. Le numéro de
+ * fenêtre fait partie de la clé : le compteur repart de zéro à chaque fenêtre.
+ * (Avec une clé fixe, chaque put() repoussait l'expiration et le compteur ne
+ * retombait jamais tant que le client restait actif : un joueur honnête était
+ * bloqué au bout de quelques minutes.)
+ */
+function cleQuota_(cle, fenetreS) {
+  return 'rl:' + cle + ':' + Math.floor(Date.now() / (fenetreS * 1000));
+}
+
+/**
+ * Limiteur à fenêtre fixe via CacheService (Apps Script ne fournit pas l'IP).
+ * `cleFenetre` vient de cleQuota_(). Au pire, 2 × max requêtes à cheval sur
+ * deux fenêtres. Le compteur n'est pas atomique (lecture puis écriture) : des
+ * requêtes simultanées peuvent le dépasser un peu.
+ */
+function limiter_(cleFenetre, max, fenetreS, dejaLu) {
   var cache = CacheService.getScriptCache();
-  var n = Number((typeof dejaLu === 'undefined' ? cache.get('rl:' + cle) : dejaLu) || 0);
+  var n = Number((typeof dejaLu === 'undefined' ? cache.get(cleFenetre) : dejaLu) || 0);
   if (n >= max) throw erreurClient_('trop_de_requetes');
-  cache.put('rl:' + cle, String(n + 1), fenetreS);
+  cache.put(cleFenetre, String(n + 1), fenetreS);
 }
 
 /** Aléa cryptographique : UUID v4 (SecureRandom) -> SHA-256 -> tirage par rejet. */
