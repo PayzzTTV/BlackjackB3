@@ -14,7 +14,10 @@
   }
 
   var CONFIG = window.BJ_CONFIG || {};
-  var NOM_COOKIE = '__Host-bj_session';
+  // Nom du cookie de session. La démo (demo.js) en impose un autre : sur la même origine,
+  // elle effacerait ou écraserait sinon le vrai cookie, et le joueur perdrait son compte.
+  // Liste blanche stricte : seul un nom __Host-bj_<lettres> est accepté.
+  var NOM_COOKIE = /^__Host-bj_[a-z]{3,20}$/.test(CONFIG.NOM_COOKIE || '') ? CONFIG.NOM_COOKIE : '__Host-bj_session';
   var SYMBOLES = { S: '♠', H: '♥', D: '♦', C: '♣' };
   var RANGS_FR = { J: 'V', Q: 'D', K: 'R' };
   var LIBELLES_STATUT = {
