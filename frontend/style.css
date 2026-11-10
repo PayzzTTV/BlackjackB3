@@ -425,3 +425,109 @@ input {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- 12. États de chargement ---------- */
+
+/* Bandeau de connexion (serveur lent ou injoignable) */
+/* Bandeau flottant en haut de l'écran : il ne décale pas la table quand il apparaît. */
+.connexion {
+  position: fixed; top: .75rem; left: 50%; z-index: 40;
+  transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 2rem); margin: 0; padding: .55rem 1rem;
+  border-radius: var(--rayon);
+  color: var(--laiton-pale); background: #33231a;
+  border: 1px solid rgba(212, 175, 97, .5);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .5);
+}
+.connexion.hors-ligne { color: var(--texte); background: #5a1c15; border-color: var(--perdu); }
+
+/* Bouton dont l'action est en cours : un petit anneau tourne à côté du libellé.
+   Plus visible que l'état désactivé seul, pour que le clic ne paraisse jamais ignoré. */
+button.en-cours { position: relative; opacity: 1; cursor: progress; }
+button.en-cours::after {
+  content: ""; display: inline-block; vertical-align: -.15em;
+  width: .9em; height: .9em; margin-left: .5em;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: tourner .7s linear infinite;
+}
+/* Un jeton (bouton rond) n'a pas la place pour l'anneau à côté du texte */
+.jeton-bouton.en-cours::after { display: none; }
+@keyframes tourner { to { transform: rotate(360deg); } }
+
+/* Écran du premier chargement : trois jetons qui s'empilent */
+.chargement { display: grid; justify-items: center; gap: 1rem; margin: 5rem auto; text-align: center; color: var(--texte-doux); }
+.chargement-jetons { display: flex; gap: .5rem; }
+.chargement-jetons span {
+  width: 1.6rem; height: 1.6rem; border-radius: 50%;
+  border: 4px dashed rgba(255, 255, 255, .85);
+  background: var(--jeton-50);
+  animation: rebond 1s ease-in-out infinite;
+}
+.chargement-jetons span:nth-child(2) { background: var(--jeton-10); animation-delay: .15s; }
+.chargement-jetons span:nth-child(3) { background: var(--jeton-500); animation-delay: .3s; }
+@keyframes rebond { 0%, 100% { transform: none; } 50% { transform: translateY(-8px); } }
+
+/* Sans animation (prefers-reduced-motion) l'anneau reste visible, simplement fixe. */
+
+/* ---------- 13. Aide intégrée ---------- */
+
+.bouton-aide {
+  margin-right: auto; padding: .35rem .8rem;
+  color: var(--laiton-pale); background: transparent;
+  border: 1px solid rgba(212, 175, 97, .5);
+}
+.bouton-aide:hover { background: rgba(212, 175, 97, .14); }
+
+/* Avertissement « votre cookie est votre compte » sur l'écran d'inscription */
+.avertissement {
+  margin-top: 1rem; padding: .75rem .9rem;
+  border-radius: var(--rayon);
+  font-size: .92rem; color: var(--texte);
+  background: rgba(0, 0, 0, .25);
+  border-left: 3px solid var(--laiton);
+}
+.avertissement strong { display: block; color: var(--laiton-pale); }
+
+/* Fenêtre des règles : une carte de règlement imprimée, posée sur le feutre */
+.aide {
+  width: min(36rem, calc(100% - 2rem)); max-height: calc(100% - 2rem);
+  padding: 1.4rem 1.6rem 1.6rem;
+  border: 0; border-radius: 12px;
+  color: var(--encre); background: var(--ivoire);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+  line-height: 1.5;
+}
+.aide::backdrop { background: rgba(10, 6, 4, .72); }
+.aide-entete { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.aide h2 { font-family: var(--police-titre); font-style: italic; font-weight: 600; font-size: 1.6rem; color: var(--feutre); }
+.aide h3 { margin: 1.2rem 0 .3rem; font-size: 1rem; color: var(--feutre); }
+.aide p, .aide ul, .aide ol { margin: 0; max-width: 62ch; }
+.aide ul, .aide ol { padding-left: 1.2rem; }
+.aide li + li { margin-top: .2rem; }
+.aide .bouton-lien { color: #5b4a36; }
+.aide :focus-visible { outline-color: var(--feutre); }
+
+@media (max-width: 560px) {
+  .bouton-aide { order: 3; margin-right: 0; }
+  .aide { padding: 1.1rem 1.1rem 1.3rem; }
+}
+
+/* ---------- 14. Accessibilité ---------- */
+
+/* Raccourci clavier affiché sur les boutons Tirer / Rester (masqué sur écran tactile) */
+.raccourci {
+  display: inline-block; margin-left: .45rem; padding: 0 .35rem;
+  font: inherit; font-size: .75rem; line-height: 1.4;
+  border: 1px solid currentColor; border-radius: 4px; opacity: .7;
+}
+@media (hover: none) { .raccourci { display: none; } }
+.aide kbd { padding: 0 .3rem; border: 1px solid #a8987c; border-radius: 4px; font: inherit; font-size: .9em; }
+
+/* Texte des places libres un peu plus contrasté */
+.place.libre { color: rgba(244, 239, 226, .66); }
+
+/* Écrans tactiles : les commandes texte atteignent 44 px de hauteur */
+@media (pointer: coarse) {
+  .bouton-lien, .bouton-aide { min-height: 44px; padding-left: .6rem; padding-right: .6rem; }
+  .mise-saisie input { min-height: 44px; }
+}
