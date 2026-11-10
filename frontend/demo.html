@@ -11,12 +11,16 @@
     Sécurité : GitHub Pages ne permet pas d'en-têtes HTTP, la CSP est donc posée ici.
     - aucun script inline, aucun script tiers, aucun eval
     - réseau limité à Google Apps Script
+    - polices auto-hébergées dans polices/ (font-src 'self'), aucune police tierce
     - Trusted Types : toute écriture HTML brute (innerHTML...) est bloquée par le navigateur
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
   <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#2a1a12">
   <title>Blackjack B3 (démo)</title>
   <link rel="icon" href="data:,">
+  <link rel="preload" href="polices/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="polices/bodoni-moda-latin-600-italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="demo.css">
   <!-- demo.js AVANT app.js : il définit BJ_CONFIG et intercepte fetch. config.js n'est pas chargé. -->
@@ -25,62 +29,162 @@
 </head>
 <body>
   <header class="entete">
-    <h1>Blackjack B3</h1>
+    <h1 class="marque">Blackjack <span class="marque-b3">B3</span></h1>
+    <button type="button" class="bouton-aide" id="btn-aide" aria-haspopup="dialog" aria-controls="aide">Règles du jeu</button>
     <div class="profil" id="profil" hidden>
-      <span id="profil-pseudo"></span>
-      <span class="solde"><span id="profil-solde">0</span> jetons</span>
+      <span class="profil-pseudo" id="profil-pseudo"></span>
+      <span class="solde" aria-label="Votre solde">
+        <span class="jeton-icone" aria-hidden="true"></span>
+        <span id="profil-solde">0</span> jetons
+      </span>
       <button type="button" class="bouton-lien" id="btn-supprimer">Supprimer mon compte</button>
     </div>
   </header>
 
   <p class="message" id="message" role="status" aria-live="polite" hidden></p>
+  <!-- État de la connexion (serveur lent ou injoignable), mis à jour par app.js -->
+  <p class="connexion" id="connexion" role="status" aria-live="polite" hidden></p>
+  <!-- Annonces réservées aux lecteurs d'écran (invisibles) : « À vous de jouer » est urgente,
+       le résultat d'une manche ne l'est pas. Le texte visible #annonce change toutes les
+       500 ms (compte à rebours) : il n'est volontairement PAS une zone live. -->
+  <p class="lecteur-ecran" id="annonce-urgente" aria-live="assertive"></p>
+  <p class="lecteur-ecran" id="annonce-polie" aria-live="polite"></p>
 
   <main>
+    <!-- Premier chargement : affiché tant que le serveur n'a pas répondu -->
+    <section class="chargement" id="ecran-chargement" hidden>
+      <div class="chargement-jetons" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p id="chargement-texte" role="status">Connexion à la table…</p>
+    </section>
+
     <!-- F1 : inscription par pseudo -->
-    <section class="carte-ecran" id="ecran-inscription" hidden>
-      <h2>Choisissez un pseudo</h2>
-      <p>Pas de mot de passe : votre session est gardée dans un cookie de ce navigateur pendant 30 jours.</p>
+    <section class="inscription" id="ecran-inscription" hidden>
+      <h2>Prenez place à la table</h2>
+      <p>Choisissez un pseudo, vous recevez 1 000 jetons.</p>
+      <div class="avertissement" role="note">
+        <strong>Votre cookie est votre compte.</strong>
+        Il n'y a pas de mot de passe : ce navigateur garde votre session 30 jours. Si vous effacez les cookies,
+        utilisez la navigation privée ou changez d'appareil, le compte et ses jetons sont perdus, sans récupération possible.
+      </div>
       <form id="form-inscription" novalidate>
         <label for="champ-pseudo">Pseudo</label>
         <input id="champ-pseudo" name="pseudo" autocomplete="off" spellcheck="false"
-               minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" required>
-        <small>3 à 16 caractères : lettres, chiffres, _</small>
+               minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" required
+               aria-describedby="aide-pseudo">
+        <small id="aide-pseudo">3 à 16 caractères : lettres, chiffres, _</small>
         <button type="submit" class="bouton-principal">Rejoindre le casino</button>
       </form>
     </section>
 
     <!-- F2 : table multijoueur -->
     <div class="disposition" id="ecran-jeu" hidden>
-      <section class="table" aria-label="Table de jeu">
-        <div class="croupier">
-          <h2>Croupier <span class="total" id="croupier-total"></span></h2>
-          <div class="main" id="croupier-cartes"></div>
-        </div>
+      <div class="salle">
+        <!-- Le rail (bord en cuir) entoure le tapis. Comme sur une vraie table de blackjack,
+             le croupier est sur le bord droit (en haut) et les joueurs sur l'arrondi (en bas). -->
+        <section class="rail" aria-label="Table de jeu">
+          <div class="tapis">
+            <div class="croupier">
+              <h2 class="croupier-titre">Croupier <span class="total" id="croupier-total"></span></h2>
+              <div class="main" id="croupier-cartes"></div>
+            </div>
 
-        <p class="annonce" id="annonce"></p>
+            <!-- Inscriptions imprimées sur le tapis : décoratives (aria-hidden), les règles sont dans l'aide. -->
+            <svg class="impression" viewBox="0 0 600 120" aria-hidden="true" focusable="false">
+              <path id="arc-impression" d="M 40 20 Q 300 120 560 20" fill="none"/>
+              <text class="impression-grand"><textPath href="#arc-impression" startOffset="50%" text-anchor="middle">Le blackjack paie 3 contre 2</textPath></text>
+              <path id="arc-impression-bas" d="M 90 52 Q 300 140 510 52" fill="none"/>
+              <text class="impression-petit"><textPath href="#arc-impression-bas" startOffset="50%" text-anchor="middle">Le croupier tire jusqu'à 16 et reste à 17</textPath></text>
+            </svg>
 
-        <ul class="places" id="places"></ul>
+            <div class="annonce-zone">
+              <p class="annonce" id="annonce"></p>
+              <div class="compte-a-rebours" id="compte-a-rebours" hidden><span id="compte-a-rebours-barre"></span></div>
+            </div>
 
+            <ul class="places" id="places" aria-label="Places autour de la table"></ul>
+          </div>
+        </section>
+
+        <!-- Plateau de commandes, sous la table -->
         <div class="commandes">
-          <button type="button" id="btn-asseoir" class="bouton-principal">S'asseoir</button>
+          <button type="button" id="btn-asseoir" class="bouton-principal">S'asseoir à la table</button>
+
           <form id="form-mise" class="mise" novalidate>
-            <label for="champ-mise">Mise</label>
-            <input id="champ-mise" type="number" inputmode="numeric" step="10" value="50">
+            <div class="jetons-mise" role="group" aria-label="Ajouter des jetons à la mise">
+              <button type="button" class="jeton-bouton j10" data-valeur="10" aria-label="Ajouter 10">10</button>
+              <button type="button" class="jeton-bouton j50" data-valeur="50" aria-label="Ajouter 50">50</button>
+              <button type="button" class="jeton-bouton j100" data-valeur="100" aria-label="Ajouter 100">100</button>
+              <button type="button" class="jeton-bouton j500" data-valeur="500" aria-label="Ajouter 500">500</button>
+            </div>
+            <div class="mise-saisie">
+              <label for="champ-mise">Mise</label>
+              <input id="champ-mise" type="number" inputmode="numeric" step="10" value="50">
+              <button type="button" class="bouton-lien" id="btn-mise-effacer">Effacer</button>
+            </div>
             <button type="submit" class="bouton-principal">Miser</button>
           </form>
-          <button type="button" id="btn-tirer" class="bouton-principal">Tirer</button>
-          <button type="button" id="btn-rester" class="bouton-secondaire">Rester</button>
+
+          <div class="decision">
+            <button type="button" id="btn-tirer" class="bouton-principal" aria-keyshortcuts="T">Tirer une carte <kbd class="raccourci" aria-hidden="true">T</kbd></button>
+            <button type="button" id="btn-rester" class="bouton-secondaire" aria-keyshortcuts="R">Rester <kbd class="raccourci" aria-hidden="true">R</kbd></button>
+          </div>
+
           <button type="button" id="btn-quitter" class="bouton-lien">Quitter la table</button>
         </div>
-      </section>
+      </div>
 
       <!-- F3 : classement -->
-      <aside class="classement" aria-label="Classement">
-        <h2>Top 10</h2>
+      <aside class="classement" aria-labelledby="titre-classement">
+        <h2 id="titre-classement">Meilleurs soldes</h2>
         <ol id="classement"></ol>
       </aside>
     </div>
   </main>
+
+  <!-- Aide intégrée : fenêtre modale native (<dialog>), ouverte par le bouton « Règles du jeu ».
+       Contenu statique : rien n'est injecté par JavaScript. Les valeurs reprennent celles du serveur
+       (backend/Code.gs et backend/Table.gs) : à mettre à jour si A les change. -->
+  <dialog class="aide" id="aide" aria-labelledby="aide-titre">
+    <div class="aide-entete">
+      <h2 id="aide-titre">Règles du jeu</h2>
+      <button type="button" class="bouton-lien" id="btn-aide-fermer">Fermer</button>
+    </div>
+
+    <h3>Le but</h3>
+    <p>Approcher 21 sans le dépasser, et faire mieux que le croupier. Chaque joueur joue contre le croupier, pas contre les autres.</p>
+
+    <h3>La valeur des cartes</h3>
+    <ul>
+      <li>De 2 à 10 : leur valeur.</li>
+      <li>Valet (V), Dame (D), Roi (R) : 10.</li>
+      <li>As : 11, ou 1 si 11 vous ferait dépasser 21.</li>
+    </ul>
+
+    <h3>Une manche</h3>
+    <ol>
+      <li>Asseyez-vous : la table a 5 places.</li>
+      <li>Misez entre 10 et 500 jetons. Les cartes sont distribuées quand tous les joueurs assis ont misé, ou 15 s après la première mise.</li>
+      <li>À votre tour, <em>Tirer une carte</em> ou <em>Rester</em>. Vous avez 30 s, après quoi vous restez automatiquement.</li>
+      <li>Le croupier tire jusqu'à 16 et reste à partir de 17. Une nouvelle manche commence 8 s plus tard.</li>
+    </ol>
+
+    <h3>Les gains</h3>
+    <ul>
+      <li>Vous battez le croupier : vous gagnez votre mise.</li>
+      <li>Blackjack (21 avec vos 2 premières cartes) : payé 3 contre 2, soit 75 jetons pour 50 misés.</li>
+      <li>Égalité : votre mise est remboursée.</li>
+      <li>Plus de 21, ou moins que le croupier : la mise est perdue.</li>
+    </ul>
+
+    <h3>Bon à savoir</h3>
+    <ul>
+      <li>Sous 10 jetons, votre solde est remis à 1 000 à la mise suivante.</li>
+      <li>Quitter la table pendant votre main abandonne la mise. Avant la distribution, elle est remboursée.</li>
+      <li>Après 3 manches sans miser, vous êtes retiré de la table.</li>
+      <li>Au clavier : <kbd>T</kbd> pour tirer une carte, <kbd>R</kbd> pour rester, quand c'est votre tour. Tab parcourt les commandes.</li>
+      <li>Votre compte n'existe que dans ce navigateur (cookie de 30 jours). « Supprimer mon compte » efface vos jetons et libère votre pseudo.</li>
+    </ul>
+  </dialog>
 
   <noscript><p class="message">JavaScript est nécessaire pour jouer.</p></noscript>
 </body>
