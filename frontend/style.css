@@ -1,65 +1,84 @@
 /*
  * Blackjack B3 : feuille de style (rôle B).
  *
- * Direction visuelle : une vraie table de casino vue de dessus.
- *  - le tapis vert-bleu (feutre), entouré d'un rail en cuir ;
- *  - les inscriptions dorées imprimées sur le feutre, en Bodoni italique ;
- *  - des cartes ivoire et des jetons de couleur, comme sur une table réelle.
- * Le reste de l'interface (en-tête, classement, boutons) reste sobre pour laisser la table au centre.
+ * Direction visuelle : l'esprit des interfaces Apple (iOS / macOS, apparence sombre).
+ *  - Fond noir, la table est l'objet mis en lumière, comme un produit sur une page Apple.
+ *  - Matériaux « verre » (flou d'arrière-plan) pour l'en-tête, la barre de commandes et l'aide.
+ *  - Police système d'Apple (SF Pro) sur Mac / iPhone, Inter auto-hébergée ailleurs.
+ *  - Couleurs système d'Apple en mode sombre : bleu pour l'action, vert / rouge / jaune pour
+ *    les résultats, hiérarchie de texte par opacité (principal, secondaire, tertiaire).
+ *  - Formes arrondies continues, boutons en pilule, mouvements courts à la courbe d'iOS.
  *
- * Polices auto-hébergées (polices/, licence SIL OFL) : Bodoni Moda pour les titres
- * et les impressions du tapis, Barlow pour l'interface et les chiffres.
+ * Aucun style en ligne (CSP style-src 'self') : tout est ici.
  *
- * Organisation : 1. jetons de design · 2. base · 3. en-tête · 4. inscription
- * 5. table · 6. cartes · 7. places · 8. commandes · 9. classement · 10. petits écrans · 11. mouvement
+ * Organisation : 1. jetons de design · 2. base · 3. boutons et champs · 4. en-tête
+ * 5. messages · 6. inscription · 7. table · 8. cartes · 9. places · 10. commandes
+ * 11. classement · 12. chargement · 13. aide · 14. accessibilité · 15. petits écrans · 16. mouvement
  */
 
 /* ---------- 1. Jetons de design ---------- */
 
-@font-face { font-family: "Barlow"; src: url("polices/barlow-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
-@font-face { font-family: "Barlow"; src: url("polices/barlow-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
-@font-face { font-family: "Barlow"; src: url("polices/barlow-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
-@font-face { font-family: "Bodoni Moda"; src: url("polices/bodoni-moda-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
-@font-face { font-family: "Bodoni Moda"; src: url("polices/bodoni-moda-latin-600-italic.woff2") format("woff2"); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("polices/inter-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("polices/inter-latin-500-normal.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("polices/inter-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("polices/inter-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 
 :root {
-  /* Matières de la table */
-  --feutre: #0d4a42;          /* tapis */
-  --feutre-clair: #14605a;    /* reflet de la lampe au-dessus de la table */
-  --feutre-ombre: #062b27;
-  --cuir: #2a1a12;            /* rail */
-  --cuir-clair: #4b2d1d;
-  --laiton: #d4af61;          /* impressions dorées, accent unique */
-  --laiton-pale: #ecd9a6;
-  --ivoire: #fbf7ee;          /* cartes */
-  --encre: #1b1612;
-  --rouge-carte: #b42318;
+  /* Fonds et surfaces (mode sombre d'Apple) */
+  --fond: #000;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --rempli: rgba(118, 118, 128, .24);       /* fond des boutons secondaires et des champs */
+  --rempli-fort: rgba(118, 118, 128, .36);
+  --separateur: rgba(84, 84, 88, .55);
+  --verre: rgba(28, 28, 30, .72);           /* matériau translucide (avec backdrop-filter) */
+  --contour-verre: rgba(255, 255, 255, .08);
 
-  /* Couleurs des jetons (convention de casino : 10 bleu, 50 rouge, 100 noir, 500 violet) */
-  --jeton-10: #2f6fb0;
-  --jeton-50: #b42318;
-  --jeton-100: #22201d;
-  --jeton-500: #6b3fa0;
+  /* Texte : une seule couleur, trois niveaux d'opacité */
+  --texte: #fff;
+  --texte-2: rgba(235, 235, 245, .62);
+  --texte-3: rgba(235, 235, 245, .34);
 
-  /* Interface */
-  --salle: #1c130f;           /* fond de la pièce */
-  --texte: #f4efe2;
-  --texte-doux: #b9c9c2;
-  --gagne: #9ee0b9;
-  --perdu: #f2a7a0;
+  /* Couleurs système */
+  --bleu: #0a84ff;
+  --bleu-survol: #409cff;
+  --vert: #30d158;
+  --rouge: #ff453a;
+  --jaune: #ffd60a;
+  --violet: #bf5af2;
+  --indigo: #5e5ce6;
 
-  --police-ui: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --police-titre: "Bodoni Moda", "Didot", Georgia, serif;
+  /* Le tapis : un vert profond, éclairé par le haut */
+  --tapis-clair: #138a5c;
+  --tapis: #0b6443;
+  --tapis-fonce: #053a27;
 
-  --rayon: 8px;
-  --carte-l: 54px;
-  --carte-h: 76px;
+  /* Cartes */
+  --carte-fond: #fff;
+  --carte-rouge: #d70015;
+  --carte-noir: #1d1d1f;
+  --carte-l: 56px;
+  --carte-h: 80px;
 
-  font-family: var(--police-ui);
+  /* Jetons (10 bleu, 50 rouge, 100 graphite, 500 violet) */
+  --jeton-10: var(--bleu);
+  --jeton-50: var(--rouge);
+  --jeton-100: #48484a;
+  --jeton-500: var(--violet);
+
+  --police: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+  --pilule: 980px;
+  --courbe-ios: cubic-bezier(.32, .72, 0, 1);
+
+  font-family: var(--police);
   font-size: 100%;
-  line-height: 1.45;
+  line-height: 1.47;
+  letter-spacing: -.01em;
   color: var(--texte);
-  background: var(--salle);
+  background: var(--fond);
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ---------- 2. Base ---------- */
@@ -69,14 +88,14 @@
 body {
   margin: 0;
   min-height: 100vh;
-  /* Une lampe suspendue au-dessus de la table : halo chaud au centre, pièce sombre autour. */
+  /* Un halo vert très discret derrière la table, sur fond noir */
   background:
-    radial-gradient(ellipse 70% 55% at 45% 30%, #3a2619 0%, rgba(58, 38, 25, 0) 70%),
-    var(--salle);
+    radial-gradient(ellipse 70% 45% at 50% 18%, rgba(48, 209, 88, .09), rgba(48, 209, 88, 0) 70%),
+    var(--fond);
 }
 
-h1, h2 { margin: 0; }
-h2 { font-size: 1.05rem; font-weight: 600; }
+h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
+h2 { font-size: 1.0625rem; font-weight: 600; }
 
 [hidden] { display: none !important; }
 
@@ -86,448 +105,490 @@ h2 { font-size: 1.05rem; font-weight: 600; }
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-main { max-width: 1180px; margin: 0 auto; padding: 1.25rem 1rem 2.5rem; }
+main { max-width: 1160px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
 
-.message {
-  max-width: 1148px; margin: .9rem auto 0; padding: .65rem 1rem;
-  border-radius: var(--rayon);
-  background: rgba(244, 239, 226, .1);
-  border-left: 3px solid var(--laiton);
+/* ---------- 3. Boutons et champs ---------- */
+
+button {
+  font: inherit; letter-spacing: inherit; cursor: pointer;
+  transition: background-color .2s, transform .2s var(--courbe-ios), opacity .2s;
 }
-.message.erreur { background: rgba(180, 35, 24, .28); border-left-color: var(--perdu); }
+button:disabled { opacity: .38; cursor: not-allowed; }
+button:not(:disabled):active { transform: scale(.97); }
 
-/* Boutons */
-button { font: inherit; cursor: pointer; border-radius: var(--rayon); }
-button:disabled { opacity: .45; cursor: not-allowed; }
-
+/* Bouton d'action : pilule bleue */
 .bouton-principal {
-  background: var(--laiton); color: var(--encre);
-  border: 0; padding: .65rem 1.3rem; font-weight: 700;
-  box-shadow: 0 2px 0 #9c7d3a;
+  padding: .7rem 1.4rem; border: 0; border-radius: var(--pilule);
+  font-size: 1.0625rem; font-weight: 600; color: #fff; background: var(--bleu);
 }
-.bouton-principal:not(:disabled):hover { background: var(--laiton-pale); }
-.bouton-principal:not(:disabled):active { transform: translateY(1px); box-shadow: 0 1px 0 #9c7d3a; }
+.bouton-principal:not(:disabled):hover { background: var(--bleu-survol); }
+.bouton-large { width: 100%; padding-top: .85rem; padding-bottom: .85rem; }
 
+/* Bouton secondaire : pilule grise translucide */
 .bouton-secondaire {
-  background: transparent; color: var(--texte);
-  border: 2px solid var(--laiton); padding: .55rem 1.2rem; font-weight: 700;
+  padding: .7rem 1.4rem; border: 0; border-radius: var(--pilule);
+  font-size: 1.0625rem; font-weight: 600; color: var(--texte); background: var(--rempli);
 }
-.bouton-secondaire:not(:disabled):hover { background: rgba(212, 175, 97, .14); }
+.bouton-secondaire:not(:disabled):hover { background: var(--rempli-fort); }
 
+/* Lien d'action : texte bleu, comme dans iOS */
 .bouton-lien {
-  background: none; border: 0; padding: .3rem;
-  color: var(--texte-doux); text-decoration: underline; text-underline-offset: 3px;
+  padding: .35rem .5rem; border: 0; border-radius: 8px; background: none;
+  font-size: .9375rem; color: var(--bleu);
 }
-.bouton-lien:hover { color: var(--texte); }
-
-/* Focus clavier toujours visible, contrasté sur le feutre comme sur le cuir */
-button:focus-visible, input:focus-visible, select:focus-visible {
-  outline: 3px solid var(--laiton-pale); outline-offset: 2px;
-}
+.bouton-lien:not(:disabled):hover { text-decoration: underline; text-underline-offset: 3px; }
+.bouton-danger { color: var(--rouge); }
 
 input {
-  font: inherit; padding: .55rem .7rem; border-radius: var(--rayon);
-  border: 1px solid #7f6a4c; background: var(--ivoire); color: var(--encre);
+  font: inherit; letter-spacing: inherit;
+  padding: .75rem .95rem; border: 0; border-radius: 12px;
+  color: var(--texte); background: var(--rempli);
+  transition: box-shadow .2s;
+}
+input::placeholder { color: var(--texte-3); }
+
+/* Focus clavier : l'anneau bleu d'Apple */
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(10, 132, 255, .6);
 }
 
-/* ---------- 3. En-tête ---------- */
+/* ---------- 4. En-tête (barre translucide qui reste en haut) ---------- */
 
 .entete {
-  display: flex; flex-wrap: wrap; gap: .75rem 1.25rem;
+  position: sticky; top: 0; z-index: 30;
+  display: flex; flex-wrap: wrap; gap: .5rem 1rem;
   align-items: center; justify-content: space-between;
-  padding: .7rem max(1rem, calc((100% - 1148px) / 2));
-  background: linear-gradient(var(--cuir-clair), var(--cuir));
-  border-bottom: 1px solid #120b08;
+  min-height: 56px;
+  padding: .5rem max(1.25rem, calc((100% - 1120px) / 2));
+  background: var(--verre);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--contour-verre);
 }
-.marque {
-  font-family: var(--police-titre); font-weight: 700;
-  font-size: 1.55rem; line-height: 1; color: var(--ivoire); letter-spacing: .01em;
-}
-.marque-b3 { font-style: italic; font-weight: 600; color: var(--laiton); }
+.marque { display: flex; align-items: center; gap: .55rem; font-size: 1.1875rem; font-weight: 600; }
+.marque-b3 { color: var(--texte-2); font-weight: 500; }
 
-.profil { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; }
-.profil-pseudo { font-weight: 600; }
+/* Petite icône d'application : un carré arrondi vert avec une carte */
+.marque-icone {
+  position: relative; width: 26px; height: 26px; border-radius: 7px;
+  background: linear-gradient(160deg, var(--tapis-clair), var(--tapis-fonce));
+  box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .25);
+}
+.marque-icone::after {
+  content: ""; position: absolute; left: 8px; top: 6px; width: 10px; height: 14px; border-radius: 2px;
+  background: #fff; transform: rotate(-8deg);
+}
+
+.entete-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
+.bouton-aide {
+  padding: .4rem .9rem; border: 0; border-radius: var(--pilule);
+  font-size: .9375rem; font-weight: 500; color: var(--texte); background: var(--rempli);
+}
+.bouton-aide:hover { background: var(--rempli-fort); }
+
+.profil { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .75rem; }
+.profil-pseudo { color: var(--texte-2); font-size: .9375rem; }
+/* Solde : pilule, chiffres à chasse fixe pour qu'ils ne « sautent » pas */
 .solde {
-  display: inline-flex; align-items: center; gap: .4rem;
-  color: var(--laiton-pale); font-weight: 700; font-variant-numeric: tabular-nums;
+  padding: .3rem .8rem; border-radius: var(--pilule);
+  font-size: .9375rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  background: rgba(48, 209, 88, .16); color: var(--vert);
+}
+.profil .bouton-lien { font-size: .8125rem; }
+/* Action destructive discrète dans l'en-tête : grise, rouge seulement au survol ou au focus */
+.profil .bouton-danger { color: var(--texte-3); }
+.profil .bouton-danger:hover, .profil .bouton-danger:focus-visible { color: var(--rouge); }
+
+/* ---------- 5. Messages ---------- */
+
+.message {
+  max-width: 1120px; margin: 1rem auto 0; padding: .8rem 1.1rem;
+  border-radius: 14px; font-size: .9375rem;
+  background: var(--surface);
+}
+.message.erreur { color: #ffd2cf; background: rgba(255, 69, 58, .18); }
+
+/* Bandeau de connexion : capsule flottante sous l'en-tête, sans décaler la page */
+.connexion {
+  position: fixed; top: 68px; left: 50%; z-index: 40;
+  transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 2rem); margin: 0; padding: .6rem 1.1rem;
+  border-radius: var(--pilule); font-size: .875rem; font-weight: 500;
+  color: var(--texte);
+  background: var(--verre);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--contour-verre);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+}
+.connexion.hors-ligne { background: rgba(120, 22, 16, .85); }
+
+/* ---------- 6. Inscription ---------- */
+
+.inscription { max-width: 400px; margin: 3.5rem auto; text-align: center; }
+
+/* Icône d'application en grand : le tapis et deux cartes */
+.app-icone {
+  position: relative; width: 96px; height: 96px; margin: 0 auto 1.5rem;
+  border-radius: 22px;
+  background: radial-gradient(ellipse at 50% 20%, var(--tapis-clair), var(--tapis) 55%, var(--tapis-fonce));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .55), inset 0 0 0 .5px rgba(255, 255, 255, .2);
+}
+.app-icone span {
+  position: absolute; top: 22px; width: 34px; height: 48px; border-radius: 5px;
+  background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, .35);
+}
+.app-icone span:first-child { left: 20px; transform: rotate(-10deg); }
+.app-icone span:last-child {
+  left: 40px; transform: rotate(8deg);
+  background: linear-gradient(145deg, var(--indigo), var(--violet));
+  box-shadow: inset 0 0 0 3px #fff, 0 3px 8px rgba(0, 0, 0, .35);
 }
 
-/* Petit jeton dessiné en CSS (bord à encoches) */
-.jeton-icone {
-  width: 1.05rem; height: 1.05rem; border-radius: 50%;
-  background: var(--laiton);
-  border: 3px dashed var(--cuir);
-  box-shadow: 0 0 0 1px var(--laiton);
-}
+.inscription h2 { font-size: 2rem; font-weight: 700; line-height: 1.15; }
+.inscription-sous-titre { margin: .5rem 0 0; font-size: 1.0625rem; color: var(--texte-2); }
 
-/* ---------- 4. Inscription ---------- */
-
-.inscription {
-  max-width: 440px; margin: 3rem auto; padding: 2rem 1.75rem 1.75rem;
-  border-radius: 14px;
-  background: radial-gradient(ellipse at 50% 0%, var(--feutre-clair), var(--feutre) 70%);
-  border: 10px solid var(--cuir);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(212, 175, 97, .35);
+.avertissement {
+  margin-top: 1.5rem; padding: .9rem 1rem;
+  border-radius: 14px; text-align: left;
+  font-size: .875rem; line-height: 1.45; color: var(--texte-2);
+  background: var(--surface);
 }
-.inscription h2 {
-  font-family: var(--police-titre); font-style: italic; font-weight: 600;
-  font-size: 1.7rem; line-height: 1.15; color: var(--laiton-pale);
-}
-.inscription p { color: var(--texte-doux); margin: .6rem 0 0; max-width: 60ch; }
-.inscription form { display: grid; gap: .45rem; margin-top: 1.4rem; }
-.inscription label { font-weight: 600; }
-.inscription small { color: var(--texte-doux); }
-.inscription .bouton-principal { margin-top: .6rem; padding: .8rem 1.3rem; }
+.avertissement strong { display: block; margin-bottom: .15rem; font-size: .9375rem; color: var(--texte); }
 
-/* ---------- 5. Table ---------- */
+.inscription form { display: grid; gap: .5rem; margin-top: 1.5rem; text-align: left; }
+.inscription label { font-size: .875rem; color: var(--texte-2); padding-left: .25rem; }
+.inscription input { font-size: 1.0625rem; }
+.inscription small { padding-left: .25rem; font-size: .8125rem; color: var(--texte-3); }
+.inscription .bouton-large { margin-top: .75rem; }
+
+/* ---------- 7. Table ---------- */
 
 .disposition {
-  display: grid; grid-template-columns: minmax(0, 1fr) 230px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 260px;
   gap: 1.5rem; align-items: start;
 }
-
 .salle { min-width: 0; }
 
-/* Le rail en cuir : forme en « D », bord droit en haut (croupier), arrondi en bas (joueurs). */
+/* Le cadre de la table : un liseré sombre, comme le bord d'un appareil */
 .rail {
-  padding: 16px;
-  border-radius: 28px 28px 50% 50% / 28px 28px 34% 34%;
-  background: linear-gradient(160deg, var(--cuir-clair), var(--cuir) 55%, #1a0f0a);
-  box-shadow: 0 22px 45px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .08);
+  padding: 8px; border-radius: 34px;
+  background: linear-gradient(180deg, #2a2a2c, #111112);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(255, 255, 255, .06);
 }
 
 .tapis {
   position: relative;
-  padding: 1.2rem 1.5rem 3.5rem;
-  border-radius: 16px 16px 50% 50% / 16px 16px 33% 33%;
-  background:
-    radial-gradient(ellipse 60% 45% at 50% 25%, var(--feutre-clair), rgba(20, 96, 90, 0) 75%),
-    var(--feutre);
-  box-shadow: inset 0 0 50px rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(212, 175, 97, .25);
+  padding: 1.6rem 1.5rem 1.75rem;
+  border-radius: 26px;
+  background: radial-gradient(ellipse 85% 70% at 50% 0%, var(--tapis-clair), var(--tapis) 50%, var(--tapis-fonce) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 -40px 60px rgba(0, 0, 0, .25);
 }
 
 .croupier { text-align: center; }
 .croupier-titre {
-  font-family: var(--police-titre); font-style: italic; font-weight: 600;
-  font-size: 1.15rem; color: var(--laiton-pale);
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-size: .9375rem; font-weight: 600; color: rgba(255, 255, 255, .78);
 }
-.total { font-family: var(--police-ui); font-style: normal; font-weight: 600; color: var(--texte-doux); font-variant-numeric: tabular-nums; }
+/* Total des points : petite pastille sombre */
+.total {
+  padding: .1rem .55rem; border-radius: var(--pilule);
+  font-size: .875rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: #fff; background: rgba(0, 0, 0, .28);
+}
+.total:empty { display: none; }
 
-/* Inscriptions dorées sur l'arc du tapis (SVG statique) */
-.impression { display: block; width: min(100%, 600px); height: auto; margin: -.2rem auto -.6rem; }
-.impression text { fill: var(--laiton); font-family: var(--police-titre); font-style: italic; font-weight: 600; }
-.impression-grand { font-size: 21px; letter-spacing: .04em; }
-.impression-petit { font-size: 13px; letter-spacing: .06em; opacity: .75; }
+.impression {
+  margin: .9rem 0 0; text-align: center;
+  font-size: .8125rem; font-weight: 500; color: rgba(255, 255, 255, .42);
+}
 
-.annonce-zone { max-width: 26rem; margin: 0 auto 1.1rem; text-align: center; }
-.annonce { margin: 0; min-height: 1.5em; font-weight: 600; font-size: 1.05rem; color: var(--ivoire); }
+.annonce-zone { margin: 1.1rem auto 1.4rem; text-align: center; }
+.annonce { margin: 0; min-height: 1.4em; font-size: 1.375rem; font-weight: 600; letter-spacing: -.02em; }
 
-/* Compte à rebours : une barre de laiton qui se vide (largeur pilotée par app.js) */
+/* Compte à rebours : une fine capsule qui se vide (largeur pilotée par app.js) */
 .compte-a-rebours {
-  height: 4px; margin-top: .4rem; border-radius: 2px;
-  background: rgba(0, 0, 0, .3); overflow: hidden;
+  width: 200px; height: 4px; margin: .65rem auto 0; border-radius: 2px;
+  background: rgba(255, 255, 255, .18); overflow: hidden;
 }
-.compte-a-rebours span { display: block; height: 100%; width: 100%; background: var(--laiton); transition: width .5s linear; }
-.compte-a-rebours.urgent span { background: var(--perdu); }
+.compte-a-rebours span { display: block; height: 100%; width: 100%; border-radius: 2px; background: #fff; transition: width .5s linear; }
+.compte-a-rebours.urgent span { background: var(--rouge); }
 
-/* ---------- 6. Cartes ---------- */
+/* ---------- 8. Cartes ---------- */
 
 .main {
   display: flex; flex-wrap: nowrap; justify-content: center;
-  min-height: calc(var(--carte-h) + 8px); margin: .45rem 0; padding-top: 4px;
+  min-height: calc(var(--carte-h) + 6px); margin: .6rem 0; padding-top: 3px;
 }
-/* Les cartes se chevauchent comme une main posée sur le tapis */
-.main .carte + .carte { margin-left: calc(var(--carte-l) * -0.42); }
+/* Les cartes se chevauchent, comme une main posée sur la table */
+.main .carte + .carte { margin-left: calc(var(--carte-l) * -0.4); }
 
 .carte {
   position: relative; flex: none;
   width: var(--carte-l); height: var(--carte-h);
-  border-radius: 6px;
-  background: var(--ivoire); color: var(--encre);
-  box-shadow: 0 1px 0 #d9d2c1, 0 4px 8px rgba(0, 0, 0, .35);
-  font-weight: 700; line-height: 1;
+  border-radius: 9px;
+  background: var(--carte-fond); color: var(--carte-noir);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .12), 0 8px 18px rgba(0, 0, 0, .32);
+  font-weight: 600; line-height: 1;
 }
-.carte.rouge { color: var(--rouge-carte); }
-/* Index en haut à gauche (lisible quand les cartes se chevauchent) */
-.carte .rang { position: absolute; top: 5px; left: 6px; font-size: 1rem; letter-spacing: -.03em; }
-.carte .couleur-coin { position: absolute; top: 22px; left: 6px; font-size: .75rem; }
-/* Grand symbole au centre */
-.carte .couleur { position: absolute; right: 7px; bottom: 6px; font-size: 1.7rem; }
+.carte.rouge { color: var(--carte-rouge); }
+.carte .rang { position: absolute; top: 7px; left: 7px; font-size: 1.0625rem; letter-spacing: -.04em; }
+.carte .couleur-coin { position: absolute; top: 26px; left: 7px; font-size: .75rem; }
+.carte .couleur { position: absolute; right: 7px; bottom: 6px; font-size: 1.75rem; }
 
-/* Dos de carte : treillis bordeaux et laiton */
+/* Dos de carte : dégradé indigo-violet avec un liseré blanc */
 .carte.dos {
-  background:
-    repeating-linear-gradient(45deg, rgba(212, 175, 97, .55) 0 1px, transparent 1px 7px),
-    repeating-linear-gradient(-45deg, rgba(212, 175, 97, .55) 0 1px, transparent 1px 7px),
-    #6e1b1b;
-  border: 3px solid var(--ivoire);
+  background: linear-gradient(145deg, var(--indigo), var(--violet));
+  box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 4px rgba(0, 0, 0, .08), 0 8px 18px rgba(0, 0, 0, .32);
 }
 
-/* ---------- 7. Places ---------- */
+/* ---------- 9. Places ---------- */
 
 .places {
   list-style: none; padding: 0; margin: 0;
-  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .7rem;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .65rem;
 }
-/* Les places suivent l'arrondi de la table : celles du centre sont plus bas. */
-.places > :nth-child(2), .places > :nth-child(4) { margin-top: 1.6rem; }
-.places > :nth-child(3) { margin-top: 2.4rem; }
 
 .place {
   position: relative;
   display: flex; flex-direction: column; align-items: center;
-  min-height: 150px; padding: .5rem .4rem .6rem;
-  border-radius: 12px;
-  /* Case imprimée sur le feutre */
-  border: 1.5px solid rgba(212, 175, 97, .45);
-  background: rgba(6, 43, 39, .35);
+  min-height: 168px; padding: .7rem .45rem .65rem;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, .2);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
   text-align: center;
+  transition: box-shadow .3s var(--courbe-ios), background-color .3s;
 }
 .place.libre {
   justify-content: center;
-  border-style: dashed; border-color: rgba(212, 175, 97, .25);
   background: transparent;
-  color: rgba(244, 239, 226, .5); font-style: italic; font-family: var(--police-titre);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .14);
+  font-size: .875rem; color: rgba(255, 255, 255, .5);
 }
-.place.moi { border-color: var(--laiton); background: rgba(6, 43, 39, .55); }
-/* Joueur dont c'est le tour : halo doré */
+.place.moi { background: rgba(0, 0, 0, .3); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .4); }
+/* Joueur dont c'est le tour : contour blanc lumineux */
 .place.actif {
-  border-color: var(--laiton-pale);
-  box-shadow: 0 0 0 3px rgba(212, 175, 97, .35), 0 0 22px rgba(236, 217, 166, .35);
+  background: rgba(0, 0, 0, .34);
+  box-shadow: inset 0 0 0 2px #fff, 0 0 28px rgba(255, 255, 255, .22);
 }
 
-.tete { display: flex; flex-direction: column; align-items: center; gap: .15rem; width: 100%; }
+.tete { display: flex; flex-direction: column; align-items: center; gap: .3rem; width: 100%; }
 .tete .pseudo {
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-weight: 600; font-size: .92rem;
+  font-size: .875rem; font-weight: 600;
 }
-.tete .vous { font-weight: 400; color: var(--laiton-pale); }
+.tete .vous { font-weight: 500; color: rgba(255, 255, 255, .6); }
 
-/* La mise posée devant le joueur, sous forme de jeton */
+/* La mise posée devant le joueur : un jeton à liseré blanc */
 .mise-jeton {
   display: inline-grid; place-items: center;
-  min-width: 2.3rem; height: 2.3rem; padding: 0 .3rem; border-radius: 50%;
-  font-size: .78rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
+  min-width: 2.25rem; height: 2.25rem; padding: 0 .25rem; border-radius: 50%;
+  font-size: .75rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
   background: var(--jeton-50);
-  border: 3px dashed rgba(255, 255, 255, .85);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, .45);
+  box-shadow: inset 0 0 0 2.5px rgba(255, 255, 255, .9), inset 0 0 0 4.5px rgba(0, 0, 0, .12), 0 3px 8px rgba(0, 0, 0, .35);
 }
 .mise-jeton.j10 { background: var(--jeton-10); }
 .mise-jeton.j100 { background: var(--jeton-100); }
 .mise-jeton.j500 { background: var(--jeton-500); }
 
-.statut { margin-top: auto; font-size: .85rem; color: var(--texte-doux); font-variant-numeric: tabular-nums; }
-.statut .main-total { color: var(--texte); font-weight: 700; }
+.statut { margin-top: auto; font-size: .8125rem; color: rgba(255, 255, 255, .62); font-variant-numeric: tabular-nums; }
+.statut .main-total { color: #fff; font-weight: 700; }
 
-/* Résultat de fin de manche */
+/* Résultat de fin de manche : pastille teintée, à la manière des badges iOS */
 .resultat {
-  display: inline-block; margin-top: .25rem; padding: .15rem .55rem; border-radius: 999px;
-  font-weight: 700; font-size: .85rem;
+  display: inline-block; margin-top: .3rem; padding: .2rem .6rem; border-radius: var(--pilule);
+  font-weight: 600; font-size: .8125rem;
 }
-.resultat.gagne { color: #0b2e22; background: var(--gagne); }
-.resultat.blackjack { color: var(--encre); background: var(--laiton); }
-.resultat.egalite { color: var(--texte); background: rgba(244, 239, 226, .18); }
-.resultat.perdu, .resultat.saute { color: #3b0d09; background: var(--perdu); }
+.resultat.gagne { color: var(--vert); background: rgba(48, 209, 88, .2); }
+.resultat.blackjack { color: var(--jaune); background: rgba(255, 214, 10, .2); }
+.resultat.egalite { color: #fff; background: rgba(255, 255, 255, .16); }
+.resultat.perdu, .resultat.saute { color: #ff8a80; background: rgba(255, 69, 58, .22); }
 
-/* ---------- 8. Commandes ---------- */
+/* ---------- 10. Commandes (barre flottante en verre) ---------- */
 
 .commandes {
-  display: flex; flex-wrap: wrap; gap: .8rem 1rem; align-items: center; justify-content: center;
-  margin-top: 1.4rem; padding: 1rem;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, .28);
-  border: 1px solid rgba(212, 175, 97, .18);
+  position: sticky; bottom: 1rem; z-index: 20;
+  display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; justify-content: center;
+  width: fit-content; max-width: 100%;
+  margin: 1.4rem auto 0; padding: .75rem 1rem;
+  border-radius: 26px;
+  background: var(--verre);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid var(--contour-verre);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
 }
 
-.mise { display: flex; flex-wrap: wrap; gap: .8rem; align-items: center; justify-content: center; }
-.mise-saisie { display: flex; gap: .4rem; align-items: center; }
-.mise-saisie label { font-weight: 600; }
-.mise-saisie input { width: 6.5rem; font-variant-numeric: tabular-nums; }
+.mise { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; justify-content: center; }
+.mise-saisie { display: flex; gap: .35rem; align-items: center; }
+.mise-saisie label { font-size: .9375rem; color: var(--texte-2); }
+.mise-saisie input { width: 6.5rem; padding: .6rem .8rem; font-variant-numeric: tabular-nums; text-align: center; }
 
 /* Jetons cliquables pour composer la mise */
-.jetons-mise { display: flex; gap: .45rem; }
+.jetons-mise { display: flex; gap: .5rem; }
 .jeton-bouton {
-  width: 3rem; height: 3rem; padding: 0; border-radius: 50%;
-  color: #fff; font-weight: 700; font-size: .85rem;
-  border: 4px dashed rgba(255, 255, 255, .85);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, .35), 0 3px 6px rgba(0, 0, 0, .45);
+  width: 2.9rem; height: 2.9rem; padding: 0; border: 0; border-radius: 50%;
+  font-size: .8125rem; font-weight: 700; color: #fff;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, .9), inset 0 0 0 5.5px rgba(0, 0, 0, .14), 0 4px 10px rgba(0, 0, 0, .4);
 }
 .jeton-bouton.j10 { background: var(--jeton-10); }
 .jeton-bouton.j50 { background: var(--jeton-50); }
 .jeton-bouton.j100 { background: var(--jeton-100); }
 .jeton-bouton.j500 { background: var(--jeton-500); }
 .jeton-bouton:not(:disabled):hover { transform: translateY(-2px); }
-.jeton-bouton:not(:disabled):active { transform: translateY(1px); }
 
-.decision { display: flex; gap: .7rem; }
-.decision .bouton-principal, .decision .bouton-secondaire { min-width: 8rem; padding-top: .8rem; padding-bottom: .8rem; }
+.decision { display: flex; gap: .6rem; }
+.decision .bouton-principal, .decision .bouton-secondaire { min-width: 9rem; }
 
-/* ---------- 9. Classement ---------- */
+/* ---------- 11. Classement (liste groupée, comme les Réglages d'iOS) ---------- */
 
-.classement {
-  padding: 1.1rem 1.1rem 1rem;
-  border-radius: 14px;
-  background: linear-gradient(var(--cuir-clair), var(--cuir));
-  box-shadow: 0 12px 30px rgba(0, 0, 0, .4);
+.classement h2 { padding: 0 .25rem; font-size: 1.375rem; font-weight: 700; }
+.classement ol {
+  margin: .75rem 0 0; padding: 0; list-style: none; counter-reset: rang;
+  border-radius: 14px; background: var(--surface); overflow: hidden;
 }
-.classement h2 { font-family: var(--police-titre); font-style: italic; font-weight: 600; font-size: 1.2rem; color: var(--laiton-pale); }
-.classement ol { margin: .7rem 0 0; padding: 0; list-style: none; counter-reset: rang; }
 .classement li {
   counter-increment: rang;
-  display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; gap: .4rem;
-  padding: .35rem 0; border-top: 1px solid rgba(212, 175, 97, .15);
-  font-variant-numeric: tabular-nums;
+  position: relative;
+  display: grid; grid-template-columns: 1.75rem minmax(0, 1fr) auto; gap: .5rem;
+  padding: .7rem 1rem; font-size: .9375rem; font-variant-numeric: tabular-nums;
 }
-.classement li::before { content: counter(rang); color: var(--laiton); font-weight: 700; }
+/* Séparateur décalé, aligné sur le texte (convention iOS) */
+.classement li + li::after {
+  content: ""; position: absolute; top: 0; left: 2.75rem; right: 0;
+  border-top: .5px solid var(--separateur);
+}
+.classement li::before { content: counter(rang); color: var(--texte-3); font-weight: 600; }
+.classement li:nth-child(-n+3)::before { color: var(--jaune); }
 .classement li .pseudo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.classement li .jetons { color: var(--laiton-pale); font-weight: 600; }
-.classement li.moi .pseudo { color: var(--laiton-pale); font-weight: 700; }
-
-/* ---------- 10. Petits écrans ---------- */
-
-@media (max-width: 900px) {
-  .disposition { grid-template-columns: 1fr; }
-  .places { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .places > :nth-child(n) { margin-top: 0; }
-  .rail { border-radius: 24px 24px 40% 40% / 24px 24px 12% 12%; }
-  .tapis { border-radius: 14px 14px 38% 38% / 14px 14px 11% 11%; }
-}
-
-@media (max-width: 560px) {
-  :root { --carte-l: 42px; --carte-h: 60px; }
-  main { padding: .75rem .5rem 2rem; }
-  .entete { padding: .6rem .75rem; }
-  .marque { font-size: 1.3rem; }
-  .rail { padding: 9px; border-radius: 18px; }
-  .tapis { padding: .9rem .6rem 1.2rem; border-radius: 12px; }
-  .impression { display: none; }
-  .places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
-  .place { min-height: 128px; }
-  .carte .rang { top: 4px; left: 4px; font-size: .85rem; }
-  .carte .couleur-coin { top: 18px; left: 4px; font-size: .65rem; }
-  .carte .couleur { right: 5px; bottom: 4px; font-size: 1.3rem; }
-  .jeton-bouton { width: 2.75rem; height: 2.75rem; }
-  .decision { width: 100%; }
-  .decision > * { flex: 1; min-width: 0; }
-  .inscription { margin: 1.5rem auto; padding: 1.5rem 1.1rem; }
-}
-
-/* ---------- 11. Mouvement ---------- */
-
-/* Une carte qui vient d'être distribuée glisse depuis le sabot (en haut à droite). Seules les
-   NOUVELLES cartes reçoivent la classe .distribuee (voir app.js), pas celles déjà sur la table. */
-.carte.distribuee { animation: distribuer .32s cubic-bezier(.2, .8, .3, 1) both; }
-@keyframes distribuer {
-  from { transform: translate(90px, -120px) rotate(14deg); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
-}
+.classement li .jetons { color: var(--texte-2); }
+.classement li.moi .pseudo { color: var(--bleu); font-weight: 600; }
 
 /* ---------- 12. États de chargement ---------- */
 
-/* Bandeau de connexion (serveur lent ou injoignable) */
-/* Bandeau flottant en haut de l'écran : il ne décale pas la table quand il apparaît. */
-.connexion {
-  position: fixed; top: .75rem; left: 50%; z-index: 40;
-  transform: translateX(-50%);
-  width: max-content; max-width: calc(100% - 2rem); margin: 0; padding: .55rem 1rem;
-  border-radius: var(--rayon);
-  color: var(--laiton-pale); background: #33231a;
-  border: 1px solid rgba(212, 175, 97, .5);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, .5);
-}
-.connexion.hors-ligne { color: var(--texte); background: #5a1c15; border-color: var(--perdu); }
-
-/* Bouton dont l'action est en cours : un petit anneau tourne à côté du libellé.
-   Plus visible que l'état désactivé seul, pour que le clic ne paraisse jamais ignoré. */
-button.en-cours { position: relative; opacity: 1; cursor: progress; }
+/* Bouton dont l'action est en cours : petit anneau qui tourne à côté du libellé */
+button.en-cours { opacity: 1; cursor: progress; }
 button.en-cours::after {
   content: ""; display: inline-block; vertical-align: -.15em;
   width: .9em; height: .9em; margin-left: .5em;
   border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
   animation: tourner .7s linear infinite;
 }
-/* Un jeton (bouton rond) n'a pas la place pour l'anneau à côté du texte */
 .jeton-bouton.en-cours::after { display: none; }
 @keyframes tourner { to { transform: rotate(360deg); } }
 
-/* Écran du premier chargement : trois jetons qui s'empilent */
-.chargement { display: grid; justify-items: center; gap: 1rem; margin: 5rem auto; text-align: center; color: var(--texte-doux); }
+/* Premier chargement : trois jetons qui rebondissent */
+.chargement { display: grid; justify-items: center; gap: 1rem; margin: 6rem auto; text-align: center; color: var(--texte-2); }
 .chargement-jetons { display: flex; gap: .5rem; }
 .chargement-jetons span {
-  width: 1.6rem; height: 1.6rem; border-radius: 50%;
-  border: 4px dashed rgba(255, 255, 255, .85);
+  width: 1.4rem; height: 1.4rem; border-radius: 50%;
   background: var(--jeton-50);
-  animation: rebond 1s ease-in-out infinite;
+  box-shadow: inset 0 0 0 2.5px rgba(255, 255, 255, .9);
+  animation: rebond 1s var(--courbe-ios) infinite;
 }
 .chargement-jetons span:nth-child(2) { background: var(--jeton-10); animation-delay: .15s; }
 .chargement-jetons span:nth-child(3) { background: var(--jeton-500); animation-delay: .3s; }
 @keyframes rebond { 0%, 100% { transform: none; } 50% { transform: translateY(-8px); } }
 
-/* Sans animation (prefers-reduced-motion) l'anneau reste visible, simplement fixe. */
+/* ---------- 13. Aide (feuille modale en verre) ---------- */
 
-/* ---------- 13. Aide intégrée ---------- */
-
-.bouton-aide {
-  margin-right: auto; padding: .35rem .8rem;
-  color: var(--laiton-pale); background: transparent;
-  border: 1px solid rgba(212, 175, 97, .5);
-}
-.bouton-aide:hover { background: rgba(212, 175, 97, .14); }
-
-/* Avertissement « votre cookie est votre compte » sur l'écran d'inscription */
-.avertissement {
-  margin-top: 1rem; padding: .75rem .9rem;
-  border-radius: var(--rayon);
-  font-size: .92rem; color: var(--texte);
-  background: rgba(0, 0, 0, .25);
-  border-left: 3px solid var(--laiton);
-}
-.avertissement strong { display: block; color: var(--laiton-pale); }
-
-/* Fenêtre des règles : une carte de règlement imprimée, posée sur le feutre */
 .aide {
-  width: min(36rem, calc(100% - 2rem)); max-height: calc(100% - 2rem);
-  padding: 1.4rem 1.6rem 1.6rem;
-  border: 0; border-radius: 12px;
-  color: var(--encre); background: var(--ivoire);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+  width: min(34rem, calc(100% - 2rem)); max-height: calc(100% - 3rem);
+  padding: 1.5rem 1.6rem 1.75rem;
+  border: 1px solid var(--contour-verre); border-radius: 22px;
+  color: var(--texte); background: rgba(30, 30, 32, .9);
+  -webkit-backdrop-filter: saturate(180%) blur(30px);
+  backdrop-filter: saturate(180%) blur(30px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .7);
   line-height: 1.5;
 }
-.aide::backdrop { background: rgba(10, 6, 4, .72); }
-.aide-entete { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
-.aide h2 { font-family: var(--police-titre); font-style: italic; font-weight: 600; font-size: 1.6rem; color: var(--feutre); }
-.aide h3 { margin: 1.2rem 0 .3rem; font-size: 1rem; color: var(--feutre); }
-.aide p, .aide ul, .aide ol { margin: 0; max-width: 62ch; }
+.aide::backdrop { background: rgba(0, 0, 0, .55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.aide-entete { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.aide h2 { font-size: 1.75rem; font-weight: 700; }
+.aide h3 { margin: 1.3rem 0 .35rem; font-size: 1.0625rem; font-weight: 600; }
+.aide p, .aide ul, .aide ol { margin: 0; max-width: 62ch; font-size: .9375rem; color: var(--texte-2); }
 .aide ul, .aide ol { padding-left: 1.2rem; }
-.aide li + li { margin-top: .2rem; }
-.aide .bouton-lien { color: #5b4a36; }
-.aide :focus-visible { outline-color: var(--feutre); }
+.aide li + li { margin-top: .25rem; }
+.aide em { font-style: normal; color: var(--texte); font-weight: 500; }
 
-@media (max-width: 560px) {
-  .bouton-aide { order: 3; margin-right: 0; }
-  .aide { padding: 1.1rem 1.1rem 1.3rem; }
-}
+/* Avertissement : voir section 6 */
 
 /* ---------- 14. Accessibilité ---------- */
 
 /* Raccourci clavier affiché sur les boutons Tirer / Rester (masqué sur écran tactile) */
 .raccourci {
-  display: inline-block; margin-left: .45rem; padding: 0 .35rem;
-  font: inherit; font-size: .75rem; line-height: 1.4;
-  border: 1px solid currentColor; border-radius: 4px; opacity: .7;
+  display: inline-block; margin-left: .5rem; padding: 0 .4rem;
+  font: inherit; font-size: .75rem; font-weight: 600; line-height: 1.5;
+  border-radius: 5px; background: rgba(255, 255, 255, .22);
 }
+.bouton-secondaire .raccourci { background: rgba(255, 255, 255, .14); }
 @media (hover: none) { .raccourci { display: none; } }
-.aide kbd { padding: 0 .3rem; border: 1px solid #a8987c; border-radius: 4px; font: inherit; font-size: .9em; }
+.aide kbd {
+  padding: .05rem .4rem; border-radius: 5px;
+  font: inherit; font-size: .85em; font-weight: 600; color: var(--texte); background: var(--rempli);
+}
 
-/* Texte des places libres un peu plus contrasté */
-.place.libre { color: rgba(244, 239, 226, .66); }
-
-/* Écrans tactiles : les commandes texte atteignent 44 px de hauteur */
+/* Écrans tactiles : toutes les commandes font au moins 44 px de haut (recommandation d'Apple) */
 @media (pointer: coarse) {
-  .bouton-lien, .bouton-aide { min-height: 44px; padding-left: .6rem; padding-right: .6rem; }
+  .bouton-lien, .bouton-aide { min-height: 44px; }
   .mise-saisie input { min-height: 44px; }
+}
+
+/* Contraste renforcé demandé par le système */
+@media (prefers-contrast: more) {
+  :root { --texte-2: rgba(235, 235, 245, .85); --texte-3: rgba(235, 235, 245, .6); }
+  .place.libre { color: #fff; }
+}
+
+/* ---------- 15. Petits écrans ---------- */
+
+@media (max-width: 960px) {
+  .disposition { grid-template-columns: 1fr; }
+  .places { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  :root { --carte-l: 44px; --carte-h: 63px; }
+  main { padding: 1rem .75rem 2rem; }
+  /* En-tête sur deux lignes : marque + Règles, puis solde, pseudo et compte */
+  .entete { padding: .45rem .9rem; min-height: 52px; }
+  .entete-actions { display: contents; }
+  .profil { order: 2; width: 100%; justify-content: space-between; }
+  .raccourci { display: none; }
+  .rail { padding: 6px; border-radius: 26px; }
+  .tapis { padding: 1.1rem .7rem 1.2rem; border-radius: 20px; }
+  .annonce { font-size: 1.125rem; }
+  .impression { display: none; }
+  .places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .place { min-height: 0; border-radius: 16px; }
+  .place.libre { min-height: 64px; }
+  /* Sur téléphone, une main vide ne réserve pas de place : la table reste compacte */
+  .main:empty { min-height: 0; margin: .25rem 0; }
+  .carte { border-radius: 7px; }
+  .carte .rang { top: 5px; left: 5px; font-size: .875rem; }
+  .carte .couleur-coin { top: 21px; left: 5px; font-size: .65rem; }
+  .carte .couleur { right: 5px; bottom: 4px; font-size: 1.35rem; }
+  /* La barre de commandes devient une barre d'outils pleine largeur, collée en bas */
+  .commandes { width: 100%; bottom: .6rem; padding: .75rem; border-radius: 22px; }
+  .jeton-bouton { width: 2.75rem; height: 2.75rem; }
+  .decision { width: 100%; }
+  .decision > * { flex: 1; min-width: 0; }
+  .inscription { margin: 2rem auto; }
+  .inscription h2 { font-size: 1.75rem; }
+  .aide { padding: 1.2rem 1.15rem 1.4rem; }
+}
+
+/* ---------- 16. Mouvement ---------- */
+
+/* Une carte distribuée descend en douceur et se pose (courbe d'iOS). Seules les NOUVELLES
+   cartes reçoivent .distribuee (voir app.js), pas celles déjà sur la table. */
+.carte.distribuee { animation: distribuer .5s var(--courbe-ios) both; }
+@keyframes distribuer {
+  from { transform: translateY(-28px) scale(.9); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
