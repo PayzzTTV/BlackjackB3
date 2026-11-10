@@ -12,26 +12,29 @@
   -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
   <meta name="referrer" content="no-referrer">
-  <meta name="theme-color" content="#2a1a12">
+  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="dark">
   <title>Blackjack B3</title>
   <link rel="icon" href="data:,">
-  <link rel="preload" href="polices/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="polices/bodoni-moda-latin-600-italic.woff2" as="font" type="font/woff2" crossorigin>
+  <!-- Sur Apple, la police système (SF Pro) est utilisée. Ailleurs, Inter (auto-hébergée) prend le relais. -->
+  <link rel="preload" href="polices/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="polices/inter-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <script src="config.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
   <header class="entete">
-    <h1 class="marque">Blackjack <span class="marque-b3">B3</span></h1>
-    <button type="button" class="bouton-aide" id="btn-aide" aria-haspopup="dialog" aria-controls="aide">Règles du jeu</button>
-    <div class="profil" id="profil" hidden>
-      <span class="profil-pseudo" id="profil-pseudo"></span>
-      <span class="solde" aria-label="Votre solde">
-        <span class="jeton-icone" aria-hidden="true"></span>
-        <span id="profil-solde">0</span> jetons
-      </span>
-      <button type="button" class="bouton-lien" id="btn-supprimer">Supprimer mon compte</button>
+    <h1 class="marque"><span class="marque-icone" aria-hidden="true"></span>Blackjack <span class="marque-b3">B3</span></h1>
+    <div class="entete-actions">
+      <button type="button" class="bouton-aide" id="btn-aide" aria-haspopup="dialog" aria-controls="aide">Règles</button>
+      <div class="profil" id="profil" hidden>
+        <span class="solde" aria-label="Votre solde">
+          <span id="profil-solde">0</span> jetons
+        </span>
+        <span class="profil-pseudo" id="profil-pseudo"></span>
+        <button type="button" class="bouton-lien bouton-danger" id="btn-supprimer">Supprimer mon compte</button>
+      </div>
     </div>
   </header>
 
@@ -53,8 +56,10 @@
 
     <!-- F1 : inscription par pseudo -->
     <section class="inscription" id="ecran-inscription" hidden>
+      <!-- Icône d'application dessinée en CSS : deux cartes posées sur le tapis -->
+      <div class="app-icone" aria-hidden="true"><span></span><span></span></div>
       <h2>Prenez place à la table</h2>
-      <p>Choisissez un pseudo, vous recevez 1 000 jetons.</p>
+      <p class="inscription-sous-titre">Choisissez un pseudo, vous recevez 1 000 jetons.</p>
       <div class="avertissement" role="note">
         <strong>Votre cookie est votre compte.</strong>
         Il n'y a pas de mot de passe : ce navigateur garde votre session 30 jours. Si vous effacez les cookies,
@@ -66,15 +71,14 @@
                minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" required
                aria-describedby="aide-pseudo">
         <small id="aide-pseudo">3 à 16 caractères : lettres, chiffres, _</small>
-        <button type="submit" class="bouton-principal">Rejoindre le casino</button>
+        <button type="submit" class="bouton-principal bouton-large">Rejoindre la table</button>
       </form>
     </section>
 
     <!-- F2 : table multijoueur -->
     <div class="disposition" id="ecran-jeu" hidden>
       <div class="salle">
-        <!-- Le rail (bord en cuir) entoure le tapis. Comme sur une vraie table de blackjack,
-             le croupier est sur le bord droit (en haut) et les joueurs sur l'arrondi (en bas). -->
+        <!-- La table : un tapis vert dans un cadre arrondi. Le croupier en haut, les joueurs en bas. -->
         <section class="rail" aria-label="Table de jeu">
           <div class="tapis">
             <div class="croupier">
@@ -82,13 +86,8 @@
               <div class="main" id="croupier-cartes"></div>
             </div>
 
-            <!-- Inscriptions imprimées sur le tapis : décoratives (aria-hidden), les règles sont dans l'aide. -->
-            <svg class="impression" viewBox="0 0 600 120" aria-hidden="true" focusable="false">
-              <path id="arc-impression" d="M 40 20 Q 300 120 560 20" fill="none"/>
-              <text class="impression-grand"><textPath href="#arc-impression" startOffset="50%" text-anchor="middle">Le blackjack paie 3 contre 2</textPath></text>
-              <path id="arc-impression-bas" d="M 90 52 Q 300 140 510 52" fill="none"/>
-              <text class="impression-petit"><textPath href="#arc-impression-bas" startOffset="50%" text-anchor="middle">Le croupier tire jusqu'à 16 et reste à 17</textPath></text>
-            </svg>
+            <!-- Rappel discret imprimé sur le tapis (décoratif : les règles complètes sont dans l'aide) -->
+            <p class="impression" aria-hidden="true">Le blackjack paie 3 contre 2. Le croupier reste à 17.</p>
 
             <div class="annonce-zone">
               <p class="annonce" id="annonce"></p>
@@ -99,7 +98,7 @@
           </div>
         </section>
 
-        <!-- Plateau de commandes, sous la table -->
+        <!-- Barre de commandes flottante (façon « dock ») : reste visible en bas de l'écran sur mobile -->
         <div class="commandes">
           <button type="button" id="btn-asseoir" class="bouton-principal">S'asseoir à la table</button>
 
@@ -129,7 +128,7 @@
 
       <!-- F3 : classement -->
       <aside class="classement" aria-labelledby="titre-classement">
-        <h2 id="titre-classement">Meilleurs soldes</h2>
+        <h2 id="titre-classement">Classement</h2>
         <ol id="classement"></ol>
       </aside>
     </div>
