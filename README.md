@@ -71,8 +71,8 @@ Les 37 tests couvrent les règles, le déroulement de la table, et la sécurité
 ## Jouer
 
 1. Choisissez un pseudo : vous recevez 1 000 jetons.
-2. **S'asseoir**, puis **Miser**. La distribution part quand tous les joueurs assis ont misé, ou 15 s après la première mise.
-3. À votre tour (30 s) : **Tirer** ou **Rester**. Le croupier tire jusqu'à 17.
+2. **S'asseoir**, puis **Miser**. La distribution part quand tous les joueurs assis ont misé, ou 8 s après la première mise.
+3. À votre tour (15 s) : **Tirer** ou **Rester**. Le croupier tire jusqu'à 17.
 4. Blackjack payé 3:2, victoire 1:1, égalité remboursée.
 
 Sans mot de passe, **votre cookie est votre compte** : en navigation privée ou après effacement des cookies, il est perdu. « Supprimer mon compte » libère le pseudo.
