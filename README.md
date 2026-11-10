@@ -66,7 +66,7 @@ Node 20 ou plus, aucune installation :
 node --test "tests/*.test.js"
 ```
 
-Les 37 tests couvrent les règles, le déroulement de la table, et la sécurité de l'API : jetons forgés ou expirés, injection de formule, mises truquées, actions hors tour, carte cachée jamais envoyée, quotas, erreurs sans fuite. La CI ([`tests.yml`](.github/workflows/tests.yml)) les lance à chaque push.
+Les tests couvrent les règles, le déroulement de la table, la sécurité de l'API (jetons forgés ou expirés, injection de formule, mises truquées, actions hors tour, carte cachée jamais envoyée, quotas, erreurs sans fuite) et, dans `non-regression.test.js`, chaque anomalie déjà corrigée. La CI ([`tests.yml`](.github/workflows/tests.yml)) les lance à chaque push.
 
 ## Jouer
 

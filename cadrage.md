@@ -152,5 +152,5 @@ Le navigateur **affiche** et **transmet des intentions**. Toutes les décisions 
 - [ ] La carte cachée du croupier n'apparaît dans **aucune** réponse réseau avant la fin de la manche.
 - [ ] Une requête modifiée à la main (mise négative, action inconnue, jeton d'un autre, pas son tour) est refusée.
 - [ ] Le Sheet ne contient aucun jeton en clair.
-- [ ] `node --test "tests/*.test.js"` passe (37 tests).
+- [ ] `node --test "tests/*.test.js"` passe (`fail 0`).
 - [ ] L'URL de l'API n'apparaît nulle part dans le dépôt ; elle vient du secret `BJ_API_URL`.
