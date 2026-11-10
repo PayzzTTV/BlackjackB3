@@ -182,3 +182,75 @@ test('anti-injection de formule dans le journal', () => {
   assert.equal(ctx.neutraliserCellule_('Alice'), 'Alice');
   assert.equal(ctx.neutraliserCellule_(-50), -50, 'les nombres ne sont pas touchés');
 });
+
+test('etat : verrou pris par une autre requête, on renvoie l\'état sans attendre', () => {
+  const { appel, ctx, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  appel({ action: 'asseoir', jeton });
+  // Une transition est due (échéance dépassée), mais le verrou est occupé.
+  const table = JSON.parse(services.proprietes.get('TABLE'));
+  table.echeance = Date.now() - 1000;
+  services.proprietes.set('TABLE', JSON.stringify(table));
+  ctx.LockService = { getScriptLock: () => ({ tryLock: () => false, releaseLock() {} }) };
+  const r = appel({ action: 'etat', jeton });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(appel({ action: 'quitter', jeton }).erreur, 'serveur_occupe', 'les actions, elles, attendent le verrou');
+  assert.equal(services.proprietes.get('TABLE'), JSON.stringify(table), 'table intacte tant que le verrou est pris');
+});
+
+test('journal : plusieurs mouvements d\'une même requête écrits ensemble, dans l\'ordre', () => {
+  const { appel, services } = backend();
+  const a = inscrire(appel, 'Alice');
+  const b = inscrire(appel, 'Bob');
+  appel({ action: 'asseoir', jeton: a });
+  appel({ action: 'asseoir', jeton: b });
+  appel({ action: 'miser', jeton: a, mise: 50 });
+  appel({ action: 'miser', jeton: b, mise: 50 });
+  const journal = services.feuilles.get('Journal').lignes.slice(1).map((l) => l[2]);
+  assert.deepEqual(journal.slice(0, 4), ['inscription', 'inscription', 'mise', 'mise']);
+  assert.ok(journal.every((e) => typeof e === 'string' && e.length > 0), JSON.stringify(journal));
+  const joueurs = services.feuilles.get('Joueurs').lignes;
+  assert.equal(Object.prototype.toString.call(joueurs[1][6]), '[object Date]', 'cree_le conservé');
+});
+
+test('all in : mise tout le solde, au-delà de MISE_MAX, montant décidé par le serveur', () => {
+  const { appel, services } = backend();
+  const a = inscrire(appel, 'Alice');
+  const b = inscrire(appel, 'Bob');
+  appel({ action: 'asseoir', jeton: a });
+  appel({ action: 'asseoir', jeton: b });
+  services.feuilles.get('Joueurs').lignes[1][4] = 2345;
+  // Un montant envoyé par le client est ignoré : seul le solde compte.
+  const r = appel({ action: 'toutMiser', jeton: a, mise: 999999 });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.data.moi.solde, 0);
+  assert.equal(r.data.table.places.find((p) => p.moi).mise, 2345);
+  assert.equal(appel({ action: 'toutMiser', jeton: a }).erreur, 'deja_mise');
+  const journal = services.feuilles.get('Journal').lignes.map((l) => l[2] + ':' + l[3]);
+  assert.ok(journal.includes("all_in:'-2345"), JSON.stringify(journal)); // ' = anti-injection de formule
+  // miser garde son plafond.
+  assert.equal(appel({ action: 'miser', jeton: b, mise: 501 }).erreur, 'mise_invalide');
+});
+
+test('all in : en faillite, le joueur est renfloué puis mise les 1 000', () => {
+  const { appel, services } = backend();
+  const a = inscrire(appel, 'Alice');
+  const b = inscrire(appel, 'Bob');
+  appel({ action: 'asseoir', jeton: a });
+  appel({ action: 'asseoir', jeton: b }); // Bob n'a pas misé : la manche ne part pas
+  services.feuilles.get('Joueurs').lignes[1][4] = 3;
+  const r = appel({ action: 'toutMiser', jeton: a });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.data.table.places.find((p) => p.moi).mise, 1000);
+  assert.equal(r.data.moi.solde, 0);
+  assert.equal(services.feuilles.get('Joueurs').lignes[1][5], 1, 'faillite comptée');
+  const journal = services.feuilles.get('Journal').lignes.map((l) => l[2]);
+  assert.ok(journal.includes('faillite+all_in'), JSON.stringify(journal));
+});
+
+test('all in : refusé hors phase de mises ou sans être assis', () => {
+  const { appel } = backend();
+  const a = inscrire(appel, 'Alice');
+  assert.equal(appel({ action: 'toutMiser', jeton: a }).erreur, 'pas_assis');
+  assert.equal(appel({ action: 'toutMiser' }).erreur, 'session_invalide');
+});

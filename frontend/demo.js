@@ -200,14 +200,16 @@
     if (etaitSonTour) passerAuSuivant(t, now);
   }
 
-  function miser(t, cle, mise, now) {
-    if (typeof mise !== 'number' || !Number.isInteger(mise) || mise < R.MISE_MIN || mise > R.MISE_MAX) throw erreur('mise_invalide');
+  /** `toutMiser` = all-in : tout le solde, sans plafond (comme le serveur). */
+  function miser(t, cle, mise, now, toutMiser) {
+    if (!toutMiser && (typeof mise !== 'number' || !Number.isInteger(mise) || mise < R.MISE_MIN || mise > R.MISE_MAX)) throw erreur('mise_invalide');
     var p = place(t, cle);
     if (!p) throw erreur('pas_assis');
     if (t.phase !== 'mises') throw erreur('mises_fermees');
     if (p.statut !== 'attente') throw erreur('deja_mise');
     var j = S.joueurs[cle];
     if (j.solde < R.MISE_MIN) j.solde = R.SOLDE_INITIAL; // faillite : renfloué, comme le serveur
+    if (toutMiser) mise = j.solde;
     if (mise > j.solde) throw erreur('solde_insuffisant');
     j.solde -= mise;
     p.mise = mise;
@@ -379,7 +381,8 @@
       case 'etat': break;
       case 'asseoir': asseoir(t, cle, S.joueurs[cle].pseudo); break;
       case 'quitter': quitter(t, cle, now); break;
-      case 'miser': miser(t, cle, req.mise, now); break;
+      case 'miser': miser(t, cle, req.mise, now, false); break;
+      case 'toutMiser': miser(t, cle, null, now, true); break;
       case 'tirer': tirer(t, cle, now); break;
       case 'rester': rester(t, cle, now); break;
       default: throw erreur('action_inconnue');

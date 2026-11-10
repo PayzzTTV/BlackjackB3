@@ -55,7 +55,8 @@ var ACTIONS = {
   etat: actionEtat_,
   asseoir: function (req) { return avecTable_(req, function (t, j, now) { return tbAsseoir(t, j.pseudo_norm, j.pseudo); }); },
   quitter: function (req) { return avecTable_(req, function (t, j, now) { return tbQuitter(t, j.pseudo_norm, now); }); },
-  miser: actionMiser_,
+  miser: function (req) { return actionMiser_(req, validerMise_(req.mise)); },
+  toutMiser: function (req) { return actionMiser_(req, null); }, // all-in : tout le solde
   tirer: function (req) { return avecTable_(req, function (t, j, now) { return tbTirer(t, j.pseudo_norm, now); }); },
   rester: function (req) { return avecTable_(req, function (t, j, now) { return tbRester(t, j.pseudo_norm, now); }); },
   supprimerCompte: actionSupprimerCompte_,
@@ -64,6 +65,7 @@ var ACTIONS = {
 
 function doPost(e) {
   var reponse;
+  memo_ = nouveauMemo_();
   try {
     var corps = (e && e.postData && typeof e.postData.contents === 'string') ? e.postData.contents : '';
     if (corps.length === 0 || corps.length > CONFIG.TAILLE_MAX_CORPS) throw erreurClient_('requete_invalide');
@@ -114,6 +116,7 @@ function actionInscription_(req) {
       pseudo, norm, sha256Hex_(jeton), Date.now() + CONFIG.SESSION_JOURS * JOUR_MS,
       CONFIG.SOLDE_INITIAL, 0, maintenant, maintenant
     ]));
+    memo_.joueurs = null;
     journal_(pseudo, 'inscription', '');
     return { jeton: jeton, pseudo: pseudo, joursValidite: CONFIG.SESSION_JOURS };
   });
@@ -124,31 +127,41 @@ function actionEtat_(req) {
   var joueur = authentifier_(req.jeton);
   var table = chargerTable_();
   if (tbTransitionDue(table, Date.now())) {
-    table = avecVerrou_(function () {
+    // Si le verrou est pris, une autre requête est déjà en train de faire avancer
+    // la table : inutile de faire la queue, on renvoie l'état lu (le client
+    // re-sonde dans 2,5 s). Évite que tous les clients s'empilent sur le verrou.
+    var avancee = avecVerrou_(function () {
       var t = chargerTable_();
       validerEtSauver_(t, tbAvancer(t, Date.now(), alea_()));
       return t;
-    });
+    }, 0);
+    if (avancee) table = avancee;
   }
   return reponseJoueur_(joueur.pseudo_norm, table);
 }
 
-function actionMiser_(req) {
-  var mise = validerMise_(req.mise);
+/**
+ * Mise `mise` (déjà validée), ou tout le solde si `mise` est null (all-in).
+ * Le montant de l'all-in est calculé ici, sous verrou, à partir du solde relu :
+ * le client n'envoie aucun montant. Il échappe à MISE_MAX (c'est le principe),
+ * pas à MISE_MIN : après renflouement, le solde vaut au moins SOLDE_INITIAL.
+ */
+function actionMiser_(req, mise) {
   return avecTable_(req, function (table, joueur, maintenant) {
-    var frais = lireJoueur_(trouverLigne_(COL.pseudo_norm, joueur.pseudo_norm));
+    var frais = lireJoueur_(trouverLigne_(COL.pseudo_norm, joueur.pseudo_norm)); // relu sous verrou
     var solde = frais.solde;
     var faillite = false;
     if (solde < CONFIG.MISE_MIN) { // faillite : on renfloue
       faillite = true;
       solde = CONFIG.SOLDE_INITIAL;
     }
+    if (mise === null) mise = solde;
     if (mise > solde) throw erreurClient_('solde_insuffisant');
     tbMiser(table, joueur.pseudo_norm, mise, maintenant);
     return [{
       cle: joueur.pseudo_norm,
       montant: (solde - frais.solde) - mise,
-      motif: faillite ? 'faillite+mise' : 'mise',
+      motif: (faillite ? 'faillite+' : '') + (req.action === 'toutMiser' ? 'all_in' : 'mise'),
       faillite: faillite
     }];
   });
@@ -165,7 +178,10 @@ function actionSupprimerCompte_(req) {
       validerEtSauver_(table, mouvements);
     }
     var ligne = trouverLigne_(COL.pseudo_norm, joueur.pseudo_norm);
-    if (ligne > 0) feuille_(FEUILLE_JOUEURS).deleteRow(ligne);
+    if (ligne > 0) {
+      feuille_(FEUILLE_JOUEURS).deleteRow(ligne);
+      memo_.joueurs = null;
+    }
     journal_(joueur.pseudo, 'suppression_compte', '');
     CacheService.getScriptCache().remove('classement');
     return { supprime: true };
@@ -178,10 +194,7 @@ function actionClassement_() {
   var enCache = cache.get('classement');
   if (enCache) return JSON.parse(enCache);
 
-  var f = feuille_(FEUILLE_JOUEURS);
-  var n = f.getLastRow() - 1;
-  var lignes = n > 0 ? f.getRange(2, 1, n, COL.solde).getValues() : [];
-  var top = lignes
+  var top = joueurs_()
     .map(function (l) { return { pseudo: String(l[COL.pseudo - 1]), solde: Number(l[COL.solde - 1]) || 0 }; })
     .sort(function (a, b) { return b.solde - a.solde; })
     .slice(0, 10);
@@ -234,11 +247,16 @@ function validerEtSauver_(table, mouvements) {
 
 function chargerTable_() {
   var brut = PropertiesService.getScriptProperties().getProperty(PROP_TABLE);
+  memo_.tableBrut = brut;
   return brut ? JSON.parse(brut) : tbNouvelle();
 }
 
+/** N'écrit que si la table a changé depuis la dernière lecture ou écriture. */
 function sauverTable_(table) {
-  PropertiesService.getScriptProperties().setProperty(PROP_TABLE, JSON.stringify(table));
+  var brut = JSON.stringify(table);
+  if (brut === memo_.tableBrut) return;
+  PropertiesService.getScriptProperties().setProperty(PROP_TABLE, brut);
+  memo_.tableBrut = brut;
 }
 
 function reponseJoueur_(cle, table) {
@@ -260,8 +278,10 @@ function appliquerMouvements_(mouvements) {
     var ligne = trouverLigne_(COL.pseudo_norm, m.cle);
     if (ligne < 0) return; // compte supprimé entre-temps
     var j = lireJoueur_(ligne);
-    f.getRange(ligne, COL.solde, 1, 2).setValues([[j.solde + m.montant, j.faillites + (m.faillite ? 1 : 0)]]);
-    f.getRange(ligne, COL.maj_le).setValue(new Date());
+    // Une seule écriture pour solde, faillites, cree_le (réécrit tel quel) et maj_le.
+    var valeurs = [j.solde + m.montant, j.faillites + (m.faillite ? 1 : 0), j.cree_le, new Date()];
+    f.getRange(ligne, COL.solde, 1, valeurs.length).setValues([valeurs]);
+    majMemo_(ligne, COL.solde, valeurs);
     journal_(j.pseudo, m.motif, String(m.montant));
   });
 }
@@ -292,7 +312,9 @@ function authentifier_(jeton) {
 
   // Expiration glissante, renouvelée au plus une fois par jour (une seule cellule écrite).
   if (joueur.jeton_expire - maintenant < (CONFIG.SESSION_JOURS - 1) * JOUR_MS) {
-    feuille_(FEUILLE_JOUEURS).getRange(ligne, COL.jeton_expire).setValue(maintenant + CONFIG.SESSION_JOURS * JOUR_MS);
+    var expire = maintenant + CONFIG.SESSION_JOURS * JOUR_MS;
+    feuille_(FEUILLE_JOUEURS).getRange(ligne, COL.jeton_expire).setValue(expire);
+    majMemo_(ligne, COL.jeton_expire, [expire]);
   }
   return joueur;
 }
@@ -317,27 +339,62 @@ function validerMise_(m) {
  * Accès au Sheet
  * ===================================================================== */
 
-function feuille_(nom) {
-  var f = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nom);
-  if (!f) throw new Error('Feuille manquante : ' + nom + ' (lancez initialiser())');
-  return f;
+/*
+ * Chaque appel à SpreadsheetApp est un aller-retour réseau (souvent 50 à 300 ms).
+ * On garde donc, le temps d'UNE requête, le classeur, les onglets et une copie
+ * de l'onglet Joueurs lue en un seul getValues(). Cette copie est relue à
+ * l'entrée de chaque section verrouillée (voir avecVerrou_) et tenue à jour à
+ * chaque écriture : elle n'est jamais plus ancienne que la requête en cours.
+ */
+var memo_ = nouveauMemo_();
+
+function nouveauMemo_() {
+  return { classeur: null, feuilles: {}, joueurs: null, tableBrut: null, journal: [] };
 }
 
-/** Numéro de ligne dont la colonne `col` vaut exactement `valeur`, ou -1. */
+function feuille_(nom) {
+  if (!memo_.feuilles[nom]) {
+    if (!memo_.classeur) memo_.classeur = SpreadsheetApp.getActiveSpreadsheet();
+    var f = memo_.classeur.getSheetByName(nom);
+    if (!f) throw new Error('Feuille manquante : ' + nom + ' (lancez initialiser())');
+    memo_.feuilles[nom] = f;
+  }
+  return memo_.feuilles[nom];
+}
+
+/** Toutes les lignes de Joueurs (sans l'en-tête), lues une fois par requête. */
+function joueurs_() {
+  if (!memo_.joueurs) {
+    var f = feuille_(FEUILLE_JOUEURS);
+    var n = f.getLastRow() - 1;
+    memo_.joueurs = n > 0 ? f.getRange(2, 1, n, ENTETES_JOUEURS.length).getValues() : [];
+  }
+  return memo_.joueurs;
+}
+
+/** Reporte dans la copie en mémoire une écriture faite sur le Sheet. */
+function majMemo_(ligne, col, valeurs) {
+  if (!memo_.joueurs) return;
+  var l = memo_.joueurs[ligne - 2];
+  if (!l) { memo_.joueurs = null; return; }
+  for (var i = 0; i < valeurs.length; i++) l[col - 1 + i] = valeurs[i];
+}
+
+/**
+ * Numéro de ligne dont la colonne `col` vaut exactement `valeur`, ou -1.
+ * Colonnes A:C au format texte brut : la valeur lue est la chaîne affichée.
+ */
 function trouverLigne_(col, valeur) {
-  var f = feuille_(FEUILLE_JOUEURS);
-  var n = f.getLastRow() - 1;
-  if (n < 1) return -1;
-  var cellule = f.getRange(2, col, n, 1)
-    .createTextFinder(String(valeur))
-    .matchEntireCell(true)
-    .matchCase(true)
-    .findNext();
-  return cellule ? cellule.getRow() : -1;
+  var lignes = joueurs_();
+  var cible = String(valeur);
+  for (var i = 0; i < lignes.length; i++) {
+    if (String(lignes[i][col - 1]) === cible) return i + 2;
+  }
+  return -1;
 }
 
 function lireJoueur_(ligne) {
-  var v = feuille_(FEUILLE_JOUEURS).getRange(ligne, 1, 1, ENTETES_JOUEURS.length).getValues()[0];
+  var v = joueurs_()[ligne - 2] || [];
   return {
     ligne: ligne,
     pseudo: String(v[COL.pseudo - 1]),
@@ -345,13 +402,24 @@ function lireJoueur_(ligne) {
     jeton_hash: String(v[COL.jeton_hash - 1]),
     jeton_expire: Number(v[COL.jeton_expire - 1]) || 0,
     solde: Number(v[COL.solde - 1]) || 0,
-    faillites: Number(v[COL.faillites - 1]) || 0
+    faillites: Number(v[COL.faillites - 1]) || 0,
+    cree_le: v[COL.cree_le - 1]
   };
 }
 
 /** Journal d'audit (lecture réservée au propriétaire du Sheet). */
 function journal_(pseudo, evenement, detail) {
-  feuille_(FEUILLE_JOURNAL).appendRow(neutraliserLigne_([new Date(), pseudo, evenement, detail]));
+  memo_.journal.push(neutraliserLigne_([new Date(), pseudo, evenement, detail]));
+}
+
+/** Écrit les lignes de journal en attente en un seul appel (sous verrou). */
+function viderJournal_() {
+  var lignes = memo_.journal;
+  if (!lignes.length) return;
+  memo_.journal = [];
+  var f = feuille_(FEUILLE_JOURNAL);
+  if (lignes.length === 1) f.appendRow(lignes[0]);
+  else f.getRange(f.getLastRow() + 1, 1, lignes.length, lignes[0].length).setValues(lignes);
 }
 
 /**
@@ -376,13 +444,27 @@ function erreurClient_(code) {
   return e;
 }
 
-function avecVerrou_(fn) {
+/**
+ * Exécute fn sous le verrou global. Sans `attenteMs`, attend jusqu'à
+ * VERROU_ATTENTE_MS puis renvoie « serveur occupé » ; avec, renvoie null si le
+ * verrou n'est pas obtenu à temps (l'appelant décide quoi faire).
+ */
+function avecVerrou_(fn, attenteMs) {
   var verrou = LockService.getScriptLock();
-  if (!verrou.tryLock(CONFIG.VERROU_ATTENTE_MS)) throw erreurClient_('serveur_occupe');
+  var facultatif = typeof attenteMs === 'number';
+  if (!verrou.tryLock(facultatif ? attenteMs : CONFIG.VERROU_ATTENTE_MS)) {
+    if (facultatif) return null;
+    throw erreurClient_('serveur_occupe');
+  }
+  memo_.joueurs = null; // une autre requête a pu écrire pendant l'attente : on relira
   try {
     return fn();
   } finally {
-    verrou.releaseLock();
+    try {
+      viderJournal_();
+    } finally {
+      verrou.releaseLock();
+    }
   }
 }
 
