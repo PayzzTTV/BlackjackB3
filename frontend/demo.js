@@ -23,10 +23,15 @@
 
   /* ---------------- Configuration de la démo ---------------- */
 
+  // Cookie propre à la démo : ne JAMAIS réutiliser le cookie de session du vrai jeu (même
+  // origine), sinon ouvrir la démo efface ou écrase la session réelle du joueur.
+  var NOM_COOKIE_DEMO = '__Host-bj_demo';
+
   // URL factice : jamais contactée, fetch est intercepté plus bas.
   window.BJ_CONFIG = Object.freeze({
     API_URL: 'https://demo.invalid/exec',
     INTERVALLE_MS: 1500,
+    NOM_COOKIE: NOM_COOKIE_DEMO,
     DEMO: true
   });
 
@@ -471,7 +476,7 @@
     reset.type = 'button';
     reset.addEventListener('click', function () {
       try { window.localStorage.removeItem(CLE_STOCKAGE); } catch (e) { /* rien */ }
-      document.cookie = '__Host-bj_session=; Max-Age=0; Path=/; Secure; SameSite=Strict';
+      document.cookie = NOM_COOKIE_DEMO + '=; Max-Age=0; Path=/; Secure; SameSite=Strict';
       window.location.reload();
     });
     panneau.appendChild(reset);

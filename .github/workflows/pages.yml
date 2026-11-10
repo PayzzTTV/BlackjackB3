@@ -37,6 +37,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # La démo (faux serveur) sert au développement local uniquement : on ne la publie pas
+      # sur l'origine du vrai jeu. Elle y côtoierait le cookie de session réel des joueurs.
+      - name: Exclure la démo de la publication
+        run: rm -f frontend/demo.html frontend/demo.js frontend/demo.css
       # L'URL de l'API vient du secret BJ_API_URL : elle n'est jamais commitée.
       # Passée par variable d'environnement (pas d'interpolation ${{ }} dans le script : anti-injection),
       # et validée strictement avant d'être écrite dans config.js.
