@@ -322,8 +322,8 @@ function genererJeton_() {
  * Vérifie le jeton et renvoie la fiche du joueur. Le compteur anti-flood et la
  * fiche en cache sont lus en UN appel ; si la fiche est en cache, valide et
  * sans renouvellement dû, le Sheet n'est pas lu du tout.
- * `remplirCache` (sondage etat) : en cas d'absence, la lecture du Sheet se fait
- * sous verrou si celui-ci est libre, pour pouvoir remettre la fiche en cache.
+ * `remplirCache` (sondage etat) : en cas d'absence, si le joueur EXISTE, on relit
+ * sous verrou (sans attendre) pour remettre sa fiche en cache.
  */
 function authentifier_(jeton, remplirCache) {
   if (typeof jeton !== 'string' || !/^[0-9a-f]{64}$/.test(jeton)) throw erreurClient_('session_invalide');
@@ -335,11 +335,17 @@ function authentifier_(jeton, remplirCache) {
   var fiche = lireFiche_(lu[cleFiche_(empreinte)]);
   if (fiche && fiche.jeton_hash === empreinte && !renouvellementDu_(fiche)) return fiche;
 
+  // Lecture HORS verrou d'abord : un jeton inconnu s'arrête ici (session_invalide)
+  // sans jamais prendre le verrou global. Sinon, une rafale de jetons inventés
+  // (chacun avec son propre quota) bloquerait toutes les actions de jeu.
+  var joueur = joueurDepuisSheet_(empreinte);
   if (remplirCache) {
+    // Le joueur existe : seule une lecture SOUS verrou peut écrire sa fiche en cache.
+    // Coût : une 2e lecture du Sheet, au plus une fois par joueur et par FICHE_CACHE_S.
     var sousVerrou = avecVerrou_(function () { return joueurDepuisSheet_(empreinte); }, 0);
     if (sousVerrou) return sousVerrou;
   }
-  return joueurDepuisSheet_(empreinte);
+  return joueur;
 }
 
 function renouvellementDu_(joueur) {

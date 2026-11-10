@@ -332,3 +332,15 @@ test('suppression de compte : la fiche quitte le cache, le jeton ne marche plus'
   assert.ok(![...services.cache.keys()].some((k) => k.startsWith('j:')));
   assert.equal(appel({ action: 'etat', jeton }).erreur, 'session_invalide');
 });
+
+test('etat : un jeton inconnu ne prend jamais le verrou global (anti-blocage, audit OWASP n°1)', () => {
+  const { appel, ctx } = backend();
+  inscrire(appel, 'Alice');
+  let verrous = 0;
+  ctx.LockService = { getScriptLock: () => ({ tryLock: () => { verrous++; return true; }, releaseLock() {} }) };
+  for (let i = 0; i < 20; i++) {
+    const jeton = require('node:crypto').randomBytes(32).toString('hex');
+    assert.equal(appel({ action: 'etat', jeton }).erreur, 'session_invalide');
+  }
+  assert.equal(verrous, 0, 'verrou pris pour un jeton inconnu');
+});
