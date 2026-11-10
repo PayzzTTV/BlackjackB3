@@ -165,6 +165,40 @@ test('limitation : requêtes par session et inscriptions globales', () => {
   assert.equal(refus, 'trop_de_requetes');
 });
 
+test('limitation : un joueur sous le quota n\'est jamais bloqué, même sur la durée', () => {
+  // Régression : le compteur ne retombait jamais tant que le client restait actif
+  // (put() repousse l'expiration), et un joueur honnête était bloqué après 90 sondages.
+  const { appel, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  for (let i = 0; i < 200; i++) { // 10 min à 1 sondage / 3 s = 20 req/min, quota 90/min
+    const r = appel({ action: 'etat', jeton });
+    assert.equal(r.ok, true, 'sondage ' + i + ' refusé : ' + r.erreur);
+    services.horloge.avancer(3000);
+  }
+});
+
+test('limitation : le blocage est levé à la fenêtre suivante', () => {
+  const { appel, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  let bloque = false;
+  for (let i = 0; i < 100 && !bloque; i++) bloque = appel({ action: 'etat', jeton }).erreur === 'trop_de_requetes';
+  assert.ok(bloque);
+  services.horloge.avancer(61000);
+  assert.equal(appel({ action: 'etat', jeton }).ok, true);
+});
+
+test('limitation : inscriptions étalées acceptées, pseudo déjà pris non décompté', () => {
+  const { appel, services } = backend();
+  for (let i = 0; i < 40; i++) { // 1 inscription / 10 min = 6/h, quota 30/h
+    assert.equal(appel({ action: 'inscription', pseudo: 'eleve_' + i }).ok, true, 'inscription ' + i);
+    services.horloge.avancer(600000);
+  }
+  const { appel: appel2 } = backend();
+  inscrire(appel2, 'Alice');
+  for (let i = 0; i < 40; i++) assert.equal(appel2({ action: 'inscription', pseudo: 'alice' }).erreur, 'pseudo_pris');
+  assert.equal(appel2({ action: 'inscription', pseudo: 'Bob' }).ok, true, 'quota épuisé par des pseudos déjà pris');
+});
+
 test('suppression du compte : session révoquée, pseudo libéré, table quittée', () => {
   const { appel } = backend();
   const jeton = inscrire(appel, 'Alice');
@@ -343,4 +377,120 @@ test('etat : un jeton inconnu ne prend jamais le verrou global (anti-blocage, au
     assert.equal(appel({ action: 'etat', jeton }).erreur, 'session_invalide');
   }
   assert.equal(verrous, 0, 'verrou pris pour un jeton inconnu');
+});
+
+/* ---------- Audit de sécurité du 2026-11-10 (docs/audit-securite.md) ---------- */
+
+const JOUR = 24 * 3600 * 1000;
+const jetonAleatoire = () => require('node:crypto').randomBytes(32).toString('hex');
+
+test('audit n°3 : au-delà du seuil global de jetons inconnus, le Sheet n\'est plus lu', () => {
+  const { appel, ctx, services } = backend();
+  const alice = inscrire(appel, 'Alice');
+  const bob = inscrire(appel, 'Bob');
+  assert.equal(appel({ action: 'etat', jeton: alice }).ok, true); // fiche d'Alice en cache
+  for (let i = 0; i < 300; i++) assert.equal(appel({ action: 'etat', jeton: jetonAleatoire() }).erreur, 'session_invalide');
+
+  const vrai = ctx.SpreadsheetApp;
+  ctx.SpreadsheetApp = { getActiveSpreadsheet: () => { throw new Error('Sheet lu malgré le seuil'); } };
+  assert.equal(appel({ action: 'etat', jeton: jetonAleatoire() }).erreur, 'trop_de_requetes');
+  assert.equal(appel({ action: 'etat', jeton: alice }).ok, true, 'un joueur en cache continue de jouer');
+  ctx.SpreadsheetApp = vrai;
+
+  services.cache.forEach((v, k) => { if (k.startsWith('j:')) services.cache.delete(k); });
+  assert.equal(appel({ action: 'etat', jeton: bob }).erreur, 'trop_de_requetes', 'hors cache : refusé pendant la rafale');
+  services.horloge.avancer(61000);
+  assert.equal(appel({ action: 'etat', jeton: bob }).ok, true, 'fenêtre suivante : le joueur revient');
+  assert.equal(appel({ action: 'etat', jeton: jetonAleatoire() }).erreur, 'session_invalide');
+});
+
+test('audit n°5 : compte expiré masqué du classement, pseudo libéré à la réinscription', () => {
+  const { appel, ctx, services } = backend();
+  const ancien = inscrire(appel, 'Fantome');
+  inscrire(appel, 'Alice');
+  const joueurs = services.feuilles.get('Joueurs');
+  joueurs.lignes[1][3] = Date.now() - 1;
+  ctx.viderCacheJoueurs();
+  services.cache.clear();
+  assert.deepEqual(appel({ action: 'classement' }).data.top.map((x) => x.pseudo), ['Alice']);
+
+  const nouveau = inscrire(appel, 'fantome');
+  assert.equal(joueurs.lignes.length, 3, 'l\'ancienne ligne est supprimée, pas doublée');
+  assert.equal(appel({ action: 'etat', jeton: ancien }).erreur, 'session_invalide');
+  assert.equal(appel({ action: 'etat', jeton: nouveau }).data.moi.solde, 1000);
+  assert.equal(appel({ action: 'inscription', pseudo: 'ALICE' }).erreur, 'pseudo_pris', 'un compte valide reste protégé');
+});
+
+test('audit n°5 : purge des comptes expirés (sauf à la table) et du vieux journal', () => {
+  const { appel, ctx, services } = backend();
+  const alice = inscrire(appel, 'Alice');
+  inscrire(appel, 'Bob');
+  const carol = inscrire(appel, 'Carol');
+  inscrire(appel, 'Dave');
+  appel({ action: 'asseoir', jeton: carol });
+  const joueurs = services.feuilles.get('Joueurs');
+  joueurs.lignes[2][3] = Date.now() - 1; // Bob : expiré
+  joueurs.lignes[3][3] = Date.now() - 1; // Carol : expirée mais assise
+  const journal = services.feuilles.get('Journal');
+  const avant = journal.lignes.length;
+  journal.lignes[1][0] = new Date(Date.now() - 40 * JOUR);
+  journal.lignes[2][0] = new Date(Date.now() - 31 * JOUR);
+
+  ctx.purgerComptesExpires();
+  assert.deepEqual(joueurs.lignes.slice(1).map((l) => l[0]), ['Alice', 'Carol', 'Dave']);
+  assert.equal(journal.lignes.length, avant - 2);
+  assert.equal(journal.lignes[0][0], 'date', 'en-tête du journal conservé');
+  assert.equal(appel({ action: 'etat', jeton: alice }).ok, true);
+  assert.equal(appel({ action: 'inscription', pseudo: 'Bob' }).ok, true, 'pseudo libéré');
+});
+
+test('audit n°6 : la session n\'est renouvelée que sous verrou', () => {
+  const { appel, ctx, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  const ligne = services.feuilles.get('Joueurs').lignes[1];
+  const bientot = Date.now() + 10 * JOUR; // renouvellement dû (moins de 29 jours restants)
+  ligne[3] = bientot;
+  ctx.viderCacheJoueurs();
+
+  const vrai = ctx.LockService;
+  ctx.LockService = { getScriptLock: () => ({ tryLock: () => false, releaseLock() {} }) };
+  assert.equal(appel({ action: 'etat', jeton }).ok, true);
+  assert.equal(ligne[3], bientot, 'expiration écrite hors verrou');
+
+  ctx.LockService = vrai;
+  assert.equal(appel({ action: 'etat', jeton }).ok, true);
+  assert.ok(ligne[3] > Date.now() + 29 * JOUR, 'renouvelée sous verrou');
+});
+
+test('audit n°7 : pseudos trompeurs ou piégés refusés', () => {
+  const { appel } = backend();
+  for (const p of ['Croupier_', 'Cr0upier', '_croupier', 'Admin_', 'adm1n', '4dmin', 'Moderateur1', 'le_root', '__proto__', '__defineGetter__']) {
+    assert.equal(appel({ action: 'inscription', pseudo: p }).erreur, 'pseudo_pris', p);
+  }
+  for (const p of ['Alice', 'constructor', 'toString', 'a_b_c', '007']) {
+    assert.equal(appel({ action: 'inscription', pseudo: p }).ok, true, p);
+  }
+});
+
+test('audit n°8 : supprimer son compte après « Rester » ne laisse ni place ni gain', () => {
+  const { appel, services } = backend();
+  const alice = inscrire(appel, 'Alice');
+  const bob = inscrire(appel, 'Bob');
+  for (let essai = 0; essai < 200; essai++) {
+    appel({ action: 'asseoir', jeton: alice });
+    appel({ action: 'asseoir', jeton: bob });
+    appel({ action: 'miser', jeton: alice, mise: 10 });
+    let r = appel({ action: 'miser', jeton: bob, mise: 10 });
+    if (r.data.table.phase === 'jeu' && r.data.table.tour === 'Alice') {
+      r = appel({ action: 'rester', jeton: alice });
+      if (r.data.table.phase === 'jeu') {
+        assert.equal(appel({ action: 'supprimerCompte', jeton: alice }).ok, true);
+        const vue = appel({ action: 'etat', jeton: bob }).data.table;
+        assert.deepEqual(vue.places.map((p) => p.pseudo), ['Bob']);
+        return;
+      }
+    }
+    services.proprietes.clear(); // table remise à zéro, on retente une autre donne
+  }
+  assert.fail('aucune donne exploitable en 200 essais');
 });

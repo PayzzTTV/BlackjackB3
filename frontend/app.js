@@ -42,7 +42,8 @@
     focusDansCommandes: false,
     monTourAvant: false, // pour n'annoncer « À vous de jouer » qu'au début du tour
     // Nombre de cartes déjà affichées par main, pour n'animer que les nouvelles (voir marquerNouvelles).
-    cartesVues: { manche: null, mains: {} },
+    // Object.create(null) : la clé est un pseudo, qui ne doit jamais croiser Object.prototype.
+    cartesVues: { manche: null, mains: Object.create(null) },
     // Durée totale du décompte en cours, pour dessiner la barre (le serveur ne donne que le restant).
     decompte: { cle: null, total: null }
   };
@@ -343,7 +344,7 @@
     if (t.phase === 'fin' && phaseAvant !== null && phaseAvant !== 'fin') chargerClassement();
 
     // Nouvelle manche : toutes les mains repartent de zéro carte.
-    if (etat.cartesVues.manche !== t.manche) etat.cartesVues = { manche: t.manche, mains: {} };
+    if (etat.cartesVues.manche !== t.manche) etat.cartesVues = { manche: t.manche, mains: Object.create(null) };
 
     // Croupier (la carte cachée est un dos, jamais une vraie carte : le serveur ne l'envoie pas)
     var zoneCroupier = $('croupier-cartes');
@@ -635,7 +636,9 @@
   $('btn-asseoir').addEventListener('click', function () { agir('asseoir', null, this); });
   $('btn-quitter').addEventListener('click', function () {
     var t = etat.vue && etat.vue.table;
-    if (t && t.phase === 'jeu' && !window.confirm('Quitter maintenant abandonne votre main (mise perdue). Continuer ?')) return;
+    var moi = t && t.places.filter(function (x) { return x.moi; })[0];
+    // Seule une main encore en cours est abandonnée : après « Rester », elle est réglée normalement.
+    if (moi && t.phase === 'jeu' && moi.statut === 'joue' && !window.confirm('Quitter maintenant abandonne votre main (mise perdue). Continuer ?')) return;
     agir('quitter', null, this);
   });
   $('btn-tirer').addEventListener('click', function () { agir('tirer', null, this); });
