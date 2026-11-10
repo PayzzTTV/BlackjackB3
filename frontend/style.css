@@ -468,3 +468,46 @@ button.en-cours::after {
 @keyframes rebond { 0%, 100% { transform: none; } 50% { transform: translateY(-8px); } }
 
 /* Sans animation (prefers-reduced-motion) l'anneau reste visible, simplement fixe. */
+
+/* ---------- 13. Aide intégrée ---------- */
+
+.bouton-aide {
+  margin-right: auto; padding: .35rem .8rem;
+  color: var(--laiton-pale); background: transparent;
+  border: 1px solid rgba(212, 175, 97, .5);
+}
+.bouton-aide:hover { background: rgba(212, 175, 97, .14); }
+
+/* Avertissement « votre cookie est votre compte » sur l'écran d'inscription */
+.avertissement {
+  margin-top: 1rem; padding: .75rem .9rem;
+  border-radius: var(--rayon);
+  font-size: .92rem; color: var(--texte);
+  background: rgba(0, 0, 0, .25);
+  border-left: 3px solid var(--laiton);
+}
+.avertissement strong { display: block; color: var(--laiton-pale); }
+
+/* Fenêtre des règles : une carte de règlement imprimée, posée sur le feutre */
+.aide {
+  width: min(36rem, calc(100% - 2rem)); max-height: calc(100% - 2rem);
+  padding: 1.4rem 1.6rem 1.6rem;
+  border: 0; border-radius: 12px;
+  color: var(--encre); background: var(--ivoire);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .6);
+  line-height: 1.5;
+}
+.aide::backdrop { background: rgba(10, 6, 4, .72); }
+.aide-entete { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.aide h2 { font-family: var(--police-titre); font-style: italic; font-weight: 600; font-size: 1.6rem; color: var(--feutre); }
+.aide h3 { margin: 1.2rem 0 .3rem; font-size: 1rem; color: var(--feutre); }
+.aide p, .aide ul, .aide ol { margin: 0; max-width: 62ch; }
+.aide ul, .aide ol { padding-left: 1.2rem; }
+.aide li + li { margin-top: .2rem; }
+.aide .bouton-lien { color: #5b4a36; }
+.aide :focus-visible { outline-color: var(--feutre); }
+
+@media (max-width: 560px) {
+  .bouton-aide { order: 3; margin-right: 0; }
+  .aide { padding: 1.1rem 1.1rem 1.3rem; }
+}

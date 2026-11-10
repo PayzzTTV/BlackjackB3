@@ -590,6 +590,12 @@
     }, gererErreur).then(liberer);
   });
 
+  /* Aide intégrée : <dialog> natif, qui gère seul le piège du focus et la touche Échap. */
+  $('btn-aide').addEventListener('click', function () { $('aide').showModal(); });
+  $('btn-aide-fermer').addEventListener('click', function () { $('aide').close(); });
+  // Clic sur le fond assombri (en dehors du contenu) : ferme l'aide.
+  $('aide').addEventListener('click', function (e) { if (e.target === this) this.close(); });
+
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden && etat.jeton) sonder();
   });
