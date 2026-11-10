@@ -182,3 +182,33 @@ test('anti-injection de formule dans le journal', () => {
   assert.equal(ctx.neutraliserCellule_('Alice'), 'Alice');
   assert.equal(ctx.neutraliserCellule_(-50), -50, 'les nombres ne sont pas touchés');
 });
+
+test('etat : verrou pris par une autre requête, on renvoie l\'état sans attendre', () => {
+  const { appel, ctx, services } = backend();
+  const jeton = inscrire(appel, 'Alice');
+  appel({ action: 'asseoir', jeton });
+  // Une transition est due (échéance dépassée), mais le verrou est occupé.
+  const table = JSON.parse(services.proprietes.get('TABLE'));
+  table.echeance = Date.now() - 1000;
+  services.proprietes.set('TABLE', JSON.stringify(table));
+  ctx.LockService = { getScriptLock: () => ({ tryLock: () => false, releaseLock() {} }) };
+  const r = appel({ action: 'etat', jeton });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(appel({ action: 'quitter', jeton }).erreur, 'serveur_occupe', 'les actions, elles, attendent le verrou');
+  assert.equal(services.proprietes.get('TABLE'), JSON.stringify(table), 'table intacte tant que le verrou est pris');
+});
+
+test('journal : plusieurs mouvements d\'une même requête écrits ensemble, dans l\'ordre', () => {
+  const { appel, services } = backend();
+  const a = inscrire(appel, 'Alice');
+  const b = inscrire(appel, 'Bob');
+  appel({ action: 'asseoir', jeton: a });
+  appel({ action: 'asseoir', jeton: b });
+  appel({ action: 'miser', jeton: a, mise: 50 });
+  appel({ action: 'miser', jeton: b, mise: 50 });
+  const journal = services.feuilles.get('Journal').lignes.slice(1).map((l) => l[2]);
+  assert.deepEqual(journal.slice(0, 4), ['inscription', 'inscription', 'mise', 'mise']);
+  assert.ok(journal.every((e) => typeof e === 'string' && e.length > 0), JSON.stringify(journal));
+  const joueurs = services.feuilles.get('Joueurs').lignes;
+  assert.equal(Object.prototype.toString.call(joueurs[1][6]), '[object Date]', 'cree_le conservé');
+});
