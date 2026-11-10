@@ -2,6 +2,8 @@
 
 Blackjack **multijoueur** dans le navigateur : une table de 5 places, un croupier, des jetons. Les joueurs sont enregistrés dans un **Google Sheet**, et un petit script Google Apps Script attaché à ce Sheet arbitre les parties. Le projet est pensé **sécurité d'abord**.
 
+**Jouer en ligne : https://payzzttv.github.io/BlackjackB3/** (captures d'écran ajoutées après la recette)
+
 - **F1 : inscription par pseudo** (sans mot de passe, session gardée dans un cookie 30 jours)
 - **F2 : table partagée** (chacun son tour contre le croupier, mises de 10 à 500 jetons)
 - **F3 : classement** (top 10)
@@ -66,7 +68,7 @@ Node 20 ou plus, aucune installation :
 node --test "tests/*.test.js"
 ```
 
-Les 38 tests couvrent les règles, le déroulement de la table, et la sécurité de l'API : jetons forgés ou expirés, injection de formule, mises truquées, actions hors tour, carte cachée jamais envoyée, quotas, erreurs sans fuite. La CI ([`tests.yml`](.github/workflows/tests.yml)) les lance à chaque push.
+Les tests couvrent les règles, le déroulement de la table, la sécurité de l'API (jetons forgés ou expirés, injection de formule, mises truquées, actions hors tour, carte cachée jamais envoyée, quotas, erreurs sans fuite) et, dans `non-regression.test.js`, chaque anomalie déjà corrigée. La CI ([`tests.yml`](.github/workflows/tests.yml)) les lance à chaque push.
 
 ## Jouer
 
@@ -82,6 +84,7 @@ Sans mot de passe, **votre cookie est votre compte** : en navigation privée ou 
 Depuis l'éditeur Apps Script :
 - `initialiser()` : crée les onglets (sans effet s'ils existent déjà) ;
 - `reinitialiserTable()` : vide la table en cas de blocage et rembourse les mises en cours.
+- `viderCacheJoueurs()` : à lancer après toute modification **à la main** de l'onglet Joueurs (solde, expiration…). Le sondage lit une copie en cache des fiches joueur (jusqu'à 30 min) pour ne pas relire le Sheet toutes les 2,5 s.
 
 Le **Journal** du Sheet trace inscriptions, mises, gains, remboursements et suppressions.
 

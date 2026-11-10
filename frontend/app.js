@@ -546,7 +546,8 @@
     }
     etat.jeton = lireCookie();
     chargerClassement();
-    setInterval(chargerClassement, 30000);
+    // 60 s = durée du cache serveur du classement : sonder plus souvent renverrait la même chose.
+    setInterval(function () { if (!document.hidden) chargerClassement(); }, 60000);
     setInterval(rafraichirAnnonce, 500);
     if (etat.jeton) {
       ecrireCookie(etat.jeton, 30); // prolonge le cookie à chaque visite
@@ -616,6 +617,14 @@
       majJetonsMise();
     });
   });
+  /* All in : le serveur mise tout le solde lui-même (aucun montant n'est envoyé). */
+  $('btn-all-in').addEventListener('click', function () {
+    var v = etat.vue;
+    var montant = v && v.moi.solde >= v.regles.miseMin ? v.moi.solde + ' jetons' : 'tout votre solde';
+    if (!window.confirm('All in : miser ' + montant + ' sur cette main ?')) return;
+    agir('toutMiser', null, this);
+  });
+
   $('btn-mise-effacer').addEventListener('click', function () {
     $('champ-mise').value = '';
     majJetonsMise();

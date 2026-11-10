@@ -16,6 +16,10 @@ const signes = (buf) => Array.from(buf, (b) => (b > 127 ? b - 256 : b));
 class FausseFeuille {
   constructor(nom) { this.nom = nom; this.lignes = []; }
   getLastRow() { return this.lignes.length; }
+  getDataRange() {
+    const largeur = Math.max(1, ...this.lignes.map((l) => l.length));
+    return new FaussePlage(this, 1, 1, this.lignes.length, largeur);
+  }
   appendRow(valeurs) { this.lignes.push(valeurs.slice()); }
   deleteRow(n) { this.lignes.splice(n - 1, 1); }
   setFrozenRows() {}
@@ -90,8 +94,11 @@ function creerServices() {
     CacheService: {
       getScriptCache: () => ({
         get: (k) => (cache.has(k) ? cache.get(k) : null),
+        getAll: (cles) => Object.fromEntries(cles.filter((k) => cache.has(k)).map((k) => [k, cache.get(k)])),
         put: (k, v) => { cache.set(k, String(v)); },
-        remove: (k) => { cache.delete(k); }
+        putAll: (valeurs) => { Object.entries(valeurs).forEach(([k, v]) => cache.set(k, String(v))); },
+        remove: (k) => { cache.delete(k); },
+        removeAll: (cles) => { cles.forEach((k) => cache.delete(k)); }
       })
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },

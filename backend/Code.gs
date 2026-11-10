@@ -17,6 +17,7 @@ var CONFIG = {
   MAX_REQUETES_MINUTE: 90,      // par session (le client interroge toutes les ~3 s)
   TAILLE_MAX_CORPS: 1024,       // octets
   CLASSEMENT_CACHE_S: 60,
+  FICHE_CACHE_S: 1800,          // fiche joueur en cache (voir « Fiches joueur »)
   VERROU_ATTENTE_MS: 10000
 };
 
@@ -55,7 +56,8 @@ var ACTIONS = {
   etat: actionEtat_,
   asseoir: function (req) { return avecTable_(req, function (t, j, now) { return tbAsseoir(t, j.pseudo_norm, j.pseudo); }); },
   quitter: function (req) { return avecTable_(req, function (t, j, now) { return tbQuitter(t, j.pseudo_norm, now); }); },
-  miser: actionMiser_,
+  miser: function (req) { return actionMiser_(req, validerMise_(req.mise)); },
+  toutMiser: function (req) { return actionMiser_(req, null); }, // all-in : tout le solde
   tirer: function (req) { return avecTable_(req, function (t, j, now) { return tbTirer(t, j.pseudo_norm, now); }); },
   rester: function (req) { return avecTable_(req, function (t, j, now) { return tbRester(t, j.pseudo_norm, now); }); },
   supprimerCompte: actionSupprimerCompte_,
@@ -64,6 +66,7 @@ var ACTIONS = {
 
 function doPost(e) {
   var reponse;
+  memo_ = nouveauMemo_();
   try {
     var corps = (e && e.postData && typeof e.postData.contents === 'string') ? e.postData.contents : '';
     if (corps.length === 0 || corps.length > CONFIG.TAILLE_MAX_CORPS) throw erreurClient_('requete_invalide');
@@ -114,41 +117,59 @@ function actionInscription_(req) {
       pseudo, norm, sha256Hex_(jeton), Date.now() + CONFIG.SESSION_JOURS * JOUR_MS,
       CONFIG.SOLDE_INITIAL, 0, maintenant, maintenant
     ]));
+    memo_.joueurs = null;
+    noterFiche_(lireJoueur_(trouverLigne_(COL.pseudo_norm, norm)));
     journal_(pseudo, 'inscription', '');
     return { jeton: jeton, pseudo: pseudo, joursValidite: CONFIG.SESSION_JOURS };
   });
 }
 
-/** Interrogé en boucle par les clients. Ne verrouille que si une transition est due. */
+/**
+ * Interrogé en boucle par les clients (95 % du trafic). Chemin normal : fiche
+ * joueur en cache + table, AUCUN accès au Sheet. Ne verrouille que si une
+ * transition est due, ou pour remettre la fiche en cache.
+ */
 function actionEtat_(req) {
-  var joueur = authentifier_(req.jeton);
+  var joueur = authentifier_(req.jeton, true);
   var table = chargerTable_();
   if (tbTransitionDue(table, Date.now())) {
-    table = avecVerrou_(function () {
+    // Si le verrou est pris, une autre requête est déjà en train de faire avancer
+    // la table : inutile de faire la queue, on renvoie l'état lu (le client
+    // re-sonde dans 2,5 s). Évite que tous les clients s'empilent sur le verrou.
+    var avancee = avecVerrou_(function () {
       var t = chargerTable_();
       validerEtSauver_(t, tbAvancer(t, Date.now(), alea_()));
       return t;
-    });
+    }, 0);
+    if (avancee) table = avancee;
+    // Des soldes ont pu bouger sous le verrou : on relit la fiche à jour.
+    if (avancee) return reponseJoueur_(joueur.pseudo_norm, table);
   }
-  return reponseJoueur_(joueur.pseudo_norm, table);
+  return reponseJoueur_(joueur.pseudo_norm, table, joueur);
 }
 
-function actionMiser_(req) {
-  var mise = validerMise_(req.mise);
+/**
+ * Mise `mise` (déjà validée), ou tout le solde si `mise` est null (all-in).
+ * Le montant de l'all-in est calculé ici, sous verrou, à partir du solde relu :
+ * le client n'envoie aucun montant. Il échappe à MISE_MAX (c'est le principe),
+ * pas à MISE_MIN : après renflouement, le solde vaut au moins SOLDE_INITIAL.
+ */
+function actionMiser_(req, mise) {
   return avecTable_(req, function (table, joueur, maintenant) {
-    var frais = lireJoueur_(trouverLigne_(COL.pseudo_norm, joueur.pseudo_norm));
+    var frais = lireJoueur_(trouverLigne_(COL.pseudo_norm, joueur.pseudo_norm)); // relu sous verrou
     var solde = frais.solde;
     var faillite = false;
     if (solde < CONFIG.MISE_MIN) { // faillite : on renfloue
       faillite = true;
       solde = CONFIG.SOLDE_INITIAL;
     }
+    if (mise === null) mise = solde;
     if (mise > solde) throw erreurClient_('solde_insuffisant');
     tbMiser(table, joueur.pseudo_norm, mise, maintenant);
     return [{
       cle: joueur.pseudo_norm,
       montant: (solde - frais.solde) - mise,
-      motif: faillite ? 'faillite+mise' : 'mise',
+      motif: (faillite ? 'faillite+' : '') + (req.action === 'toutMiser' ? 'all_in' : 'mise'),
       faillite: faillite
     }];
   });
@@ -165,7 +186,11 @@ function actionSupprimerCompte_(req) {
       validerEtSauver_(table, mouvements);
     }
     var ligne = trouverLigne_(COL.pseudo_norm, joueur.pseudo_norm);
-    if (ligne > 0) feuille_(FEUILLE_JOUEURS).deleteRow(ligne);
+    if (ligne > 0) {
+      feuille_(FEUILLE_JOUEURS).deleteRow(ligne);
+      memo_.joueurs = null;
+    }
+    memo_.fiches[joueur.jeton_hash] = null; // retirée du cache avant la fin du verrou
     journal_(joueur.pseudo, 'suppression_compte', '');
     CacheService.getScriptCache().remove('classement');
     return { supprime: true };
@@ -178,10 +203,7 @@ function actionClassement_() {
   var enCache = cache.get('classement');
   if (enCache) return JSON.parse(enCache);
 
-  var f = feuille_(FEUILLE_JOUEURS);
-  var n = f.getLastRow() - 1;
-  var lignes = n > 0 ? f.getRange(2, 1, n, COL.solde).getValues() : [];
-  var top = lignes
+  var top = joueurs_()
     .map(function (l) { return { pseudo: String(l[COL.pseudo - 1]), solde: Number(l[COL.solde - 1]) || 0 }; })
     .sort(function (a, b) { return b.solde - a.solde; })
     .slice(0, 10);
@@ -234,17 +256,31 @@ function validerEtSauver_(table, mouvements) {
 
 function chargerTable_() {
   var brut = PropertiesService.getScriptProperties().getProperty(PROP_TABLE);
+  memo_.tableBrut = brut;
   return brut ? JSON.parse(brut) : tbNouvelle();
 }
 
+/** N'écrit que si la table a changé depuis la dernière lecture ou écriture. */
 function sauverTable_(table) {
-  PropertiesService.getScriptProperties().setProperty(PROP_TABLE, JSON.stringify(table));
+  var brut = JSON.stringify(table);
+  if (brut === memo_.tableBrut) return;
+  PropertiesService.getScriptProperties().setProperty(PROP_TABLE, brut);
+  memo_.tableBrut = brut;
 }
 
-function reponseJoueur_(cle, table) {
-  var ligne = trouverLigne_(COL.pseudo_norm, cle);
-  if (ligne < 0) throw erreurClient_('session_invalide');
-  var j = lireJoueur_(ligne);
+/**
+ * Vue renvoyée au joueur. `connu` : fiche déjà lue par authentifier_ hors
+ * verrou (sondage etat) ; sinon on relit le Sheet, et sous verrou la fiche
+ * relue est remise en cache.
+ */
+function reponseJoueur_(cle, table, connu) {
+  var j = connu;
+  if (!j) {
+    var ligne = trouverLigne_(COL.pseudo_norm, cle);
+    if (ligne < 0) throw erreurClient_('session_invalide');
+    j = lireJoueur_(ligne);
+    noterFiche_(j);
+  }
   return {
     moi: { pseudo: j.pseudo, solde: j.solde },
     regles: { miseMin: CONFIG.MISE_MIN, miseMax: CONFIG.MISE_MAX },
@@ -260,8 +296,11 @@ function appliquerMouvements_(mouvements) {
     var ligne = trouverLigne_(COL.pseudo_norm, m.cle);
     if (ligne < 0) return; // compte supprimé entre-temps
     var j = lireJoueur_(ligne);
-    f.getRange(ligne, COL.solde, 1, 2).setValues([[j.solde + m.montant, j.faillites + (m.faillite ? 1 : 0)]]);
-    f.getRange(ligne, COL.maj_le).setValue(new Date());
+    // Une seule écriture pour solde, faillites, cree_le (réécrit tel quel) et maj_le.
+    var valeurs = [j.solde + m.montant, j.faillites + (m.faillite ? 1 : 0), j.cree_le, new Date()];
+    f.getRange(ligne, COL.solde, 1, valeurs.length).setValues([valeurs]);
+    majMemo_(ligne, COL.solde, valeurs);
+    noterFiche_(lireJoueur_(ligne));
     journal_(j.pseudo, m.motif, String(m.montant));
   });
 }
@@ -279,11 +318,38 @@ function genererJeton_() {
   return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase();
 }
 
-function authentifier_(jeton) {
+/**
+ * Vérifie le jeton et renvoie la fiche du joueur. Le compteur anti-flood et la
+ * fiche en cache sont lus en UN appel ; si la fiche est en cache, valide et
+ * sans renouvellement dû, le Sheet n'est pas lu du tout.
+ * `remplirCache` (sondage etat) : en cas d'absence, la lecture du Sheet se fait
+ * sous verrou si celui-ci est libre, pour pouvoir remettre la fiche en cache.
+ */
+function authentifier_(jeton, remplirCache) {
   if (typeof jeton !== 'string' || !/^[0-9a-f]{64}$/.test(jeton)) throw erreurClient_('session_invalide');
   var empreinte = sha256Hex_(jeton);
-  limiter_('r:' + empreinte, CONFIG.MAX_REQUETES_MINUTE, 60);
+  var cleLimite = 'r:' + empreinte;
+  var lu = CacheService.getScriptCache().getAll(['rl:' + cleLimite, cleFiche_(empreinte)]);
+  limiter_(cleLimite, CONFIG.MAX_REQUETES_MINUTE, 60, lu['rl:' + cleLimite] || null); // absent = 0
 
+  var fiche = lireFiche_(lu[cleFiche_(empreinte)]);
+  if (fiche && fiche.jeton_hash === empreinte && !renouvellementDu_(fiche)) return fiche;
+
+  if (remplirCache) {
+    var sousVerrou = avecVerrou_(function () { return joueurDepuisSheet_(empreinte); }, 0);
+    if (sousVerrou) return sousVerrou;
+  }
+  return joueurDepuisSheet_(empreinte);
+}
+
+function renouvellementDu_(joueur) {
+  var maintenant = Date.now();
+  if (!(joueur.jeton_expire > maintenant)) throw erreurClient_('session_invalide');
+  return joueur.jeton_expire - maintenant < (CONFIG.SESSION_JOURS - 1) * JOUR_MS;
+}
+
+/** Lit le joueur dans le Sheet, renouvelle la session si besoin, met la fiche en cache (sous verrou). */
+function joueurDepuisSheet_(empreinte) {
   var ligne = trouverLigne_(COL.jeton_hash, empreinte);
   if (ligne < 0) throw erreurClient_('session_invalide');
   var joueur = lireJoueur_(ligne);
@@ -292,9 +358,71 @@ function authentifier_(jeton) {
 
   // Expiration glissante, renouvelée au plus une fois par jour (une seule cellule écrite).
   if (joueur.jeton_expire - maintenant < (CONFIG.SESSION_JOURS - 1) * JOUR_MS) {
-    feuille_(FEUILLE_JOUEURS).getRange(ligne, COL.jeton_expire).setValue(maintenant + CONFIG.SESSION_JOURS * JOUR_MS);
+    var expire = maintenant + CONFIG.SESSION_JOURS * JOUR_MS;
+    feuille_(FEUILLE_JOUEURS).getRange(ligne, COL.jeton_expire).setValue(expire);
+    majMemo_(ligne, COL.jeton_expire, [expire]);
+    joueur.jeton_expire = expire;
   }
+  noterFiche_(joueur);
   return joueur;
+}
+
+/* =====================================================================
+ * Fiches joueur en cache
+ *
+ * Mesuré en ligne : une lecture du Sheet coûte 0,5 à 2 s, une lecture du
+ * cache quelques millisecondes. La fiche (pseudo, solde, expiration) est donc
+ * gardée dans CacheService, clé = empreinte du jeton.
+ *
+ * Cohérence : une fiche n'est ÉCRITE que sous le verrou, après lecture du
+ * Sheet sous ce même verrou. Toutes les écritures de solde ayant lieu sous le
+ * verrou, une fiche ne peut jamais être écrasée par une lecture plus ancienne.
+ * Elle ne sert qu'à authentifier et à afficher : toute décision sur l'argent
+ * (miser) relit le Sheet sous verrou.
+ * Après une modification À LA MAIN du Sheet, lancer viderCacheJoueurs().
+ * ===================================================================== */
+
+function cleFiche_(empreinte) {
+  return 'j:' + empreinte;
+}
+
+/** Retient la fiche à écrire en cache en fin de verrou (ignoré hors verrou). */
+function noterFiche_(j) {
+  if (!memo_.sousVerrou || !j || !j.jeton_hash) return;
+  memo_.fiches[j.jeton_hash] = {
+    pseudo: j.pseudo, pseudo_norm: j.pseudo_norm, jeton_hash: j.jeton_hash,
+    jeton_expire: j.jeton_expire, solde: j.solde, faillites: j.faillites
+  };
+}
+
+function lireFiche_(brut) {
+  if (!brut) return null;
+  try {
+    return JSON.parse(brut);
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Écrit (ou retire) les fiches retenues, en un appel chacun (appelé sous verrou). */
+function viderFiches_() {
+  var aEcrire = {};
+  var aRetirer = [];
+  var n = 0;
+  Object.keys(memo_.fiches).forEach(function (h) {
+    if (memo_.fiches[h] === null) aRetirer.push(cleFiche_(h));
+    else { aEcrire[cleFiche_(h)] = JSON.stringify(memo_.fiches[h]); n++; }
+  });
+  memo_.fiches = {};
+  var cache = CacheService.getScriptCache();
+  try {
+    if (n) cache.putAll(aEcrire, CONFIG.FICHE_CACHE_S);
+  } catch (err) {
+    // Échec d'écriture : on retire ces fiches pour ne pas laisser d'anciennes valeurs.
+    aRetirer = aRetirer.concat(Object.keys(aEcrire));
+    console.error(err && err.stack ? err.stack : err);
+  }
+  if (aRetirer.length) cache.removeAll(aRetirer);
 }
 
 /* =====================================================================
@@ -317,27 +445,63 @@ function validerMise_(m) {
  * Accès au Sheet
  * ===================================================================== */
 
-function feuille_(nom) {
-  var f = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nom);
-  if (!f) throw new Error('Feuille manquante : ' + nom + ' (lancez initialiser())');
-  return f;
+/*
+ * Chaque appel à SpreadsheetApp est un aller-retour réseau (souvent 50 à 300 ms).
+ * On garde donc, le temps d'UNE requête, le classeur, les onglets et une copie
+ * de l'onglet Joueurs lue en un seul getValues(). Cette copie est relue à
+ * l'entrée de chaque section verrouillée (voir avecVerrou_) et tenue à jour à
+ * chaque écriture : elle n'est jamais plus ancienne que la requête en cours.
+ */
+var memo_ = nouveauMemo_();
+
+function nouveauMemo_() {
+  return { classeur: null, feuilles: {}, joueurs: null, tableBrut: null, journal: [], fiches: {}, sousVerrou: false };
 }
 
-/** Numéro de ligne dont la colonne `col` vaut exactement `valeur`, ou -1. */
+function feuille_(nom) {
+  if (!memo_.feuilles[nom]) {
+    if (!memo_.classeur) memo_.classeur = SpreadsheetApp.getActiveSpreadsheet();
+    var f = memo_.classeur.getSheetByName(nom);
+    if (!f) throw new Error('Feuille manquante : ' + nom + ' (lancez initialiser())');
+    memo_.feuilles[nom] = f;
+  }
+  return memo_.feuilles[nom];
+}
+
+/** Toutes les lignes de Joueurs (sans l'en-tête), lues une fois par requête. */
+function joueurs_() {
+  if (!memo_.joueurs) {
+    // getDataRange() : un seul aller-retour (getLastRow() + getRange() en coûtait deux).
+    var lignes = feuille_(FEUILLE_JOUEURS).getDataRange().getValues();
+    lignes.shift(); // en-tête
+    memo_.joueurs = lignes;
+  }
+  return memo_.joueurs;
+}
+
+/** Reporte dans la copie en mémoire une écriture faite sur le Sheet. */
+function majMemo_(ligne, col, valeurs) {
+  if (!memo_.joueurs) return;
+  var l = memo_.joueurs[ligne - 2];
+  if (!l) { memo_.joueurs = null; return; }
+  for (var i = 0; i < valeurs.length; i++) l[col - 1 + i] = valeurs[i];
+}
+
+/**
+ * Numéro de ligne dont la colonne `col` vaut exactement `valeur`, ou -1.
+ * Colonnes A:C au format texte brut : la valeur lue est la chaîne affichée.
+ */
 function trouverLigne_(col, valeur) {
-  var f = feuille_(FEUILLE_JOUEURS);
-  var n = f.getLastRow() - 1;
-  if (n < 1) return -1;
-  var cellule = f.getRange(2, col, n, 1)
-    .createTextFinder(String(valeur))
-    .matchEntireCell(true)
-    .matchCase(true)
-    .findNext();
-  return cellule ? cellule.getRow() : -1;
+  var lignes = joueurs_();
+  var cible = String(valeur);
+  for (var i = 0; i < lignes.length; i++) {
+    if (String(lignes[i][col - 1]) === cible) return i + 2;
+  }
+  return -1;
 }
 
 function lireJoueur_(ligne) {
-  var v = feuille_(FEUILLE_JOUEURS).getRange(ligne, 1, 1, ENTETES_JOUEURS.length).getValues()[0];
+  var v = joueurs_()[ligne - 2] || [];
   return {
     ligne: ligne,
     pseudo: String(v[COL.pseudo - 1]),
@@ -345,13 +509,24 @@ function lireJoueur_(ligne) {
     jeton_hash: String(v[COL.jeton_hash - 1]),
     jeton_expire: Number(v[COL.jeton_expire - 1]) || 0,
     solde: Number(v[COL.solde - 1]) || 0,
-    faillites: Number(v[COL.faillites - 1]) || 0
+    faillites: Number(v[COL.faillites - 1]) || 0,
+    cree_le: v[COL.cree_le - 1]
   };
 }
 
 /** Journal d'audit (lecture réservée au propriétaire du Sheet). */
 function journal_(pseudo, evenement, detail) {
-  feuille_(FEUILLE_JOURNAL).appendRow(neutraliserLigne_([new Date(), pseudo, evenement, detail]));
+  memo_.journal.push(neutraliserLigne_([new Date(), pseudo, evenement, detail]));
+}
+
+/** Écrit les lignes de journal en attente en un seul appel (sous verrou). */
+function viderJournal_() {
+  var lignes = memo_.journal;
+  if (!lignes.length) return;
+  memo_.journal = [];
+  var f = feuille_(FEUILLE_JOURNAL);
+  if (lignes.length === 1) f.appendRow(lignes[0]);
+  else f.getRange(f.getLastRow() + 1, 1, lignes.length, lignes[0].length).setValues(lignes);
 }
 
 /**
@@ -376,20 +551,40 @@ function erreurClient_(code) {
   return e;
 }
 
-function avecVerrou_(fn) {
+/**
+ * Exécute fn sous le verrou global. Sans `attenteMs`, attend jusqu'à
+ * VERROU_ATTENTE_MS puis renvoie « serveur occupé » ; avec, renvoie null si le
+ * verrou n'est pas obtenu à temps (l'appelant décide quoi faire).
+ */
+function avecVerrou_(fn, attenteMs) {
   var verrou = LockService.getScriptLock();
-  if (!verrou.tryLock(CONFIG.VERROU_ATTENTE_MS)) throw erreurClient_('serveur_occupe');
+  var facultatif = typeof attenteMs === 'number';
+  if (!verrou.tryLock(facultatif ? attenteMs : CONFIG.VERROU_ATTENTE_MS)) {
+    if (facultatif) return null;
+    throw erreurClient_('serveur_occupe');
+  }
+  memo_.joueurs = null; // une autre requête a pu écrire pendant l'attente : on relira
+  memo_.sousVerrou = true;
   try {
     return fn();
   } finally {
-    verrou.releaseLock();
+    try {
+      viderJournal_();
+    } finally {
+      try {
+        viderFiches_();
+      } finally {
+        memo_.sousVerrou = false;
+        verrou.releaseLock();
+      }
+    }
   }
 }
 
 /** Limiteur à fenêtre glissante via CacheService (Apps Script ne fournit pas l'IP). */
-function limiter_(cle, max, fenetreS) {
+function limiter_(cle, max, fenetreS, dejaLu) {
   var cache = CacheService.getScriptCache();
-  var n = Number(cache.get('rl:' + cle) || 0);
+  var n = Number((typeof dejaLu === 'undefined' ? cache.get('rl:' + cle) : dejaLu) || 0);
   if (n >= max) throw erreurClient_('trop_de_requetes');
   cache.put('rl:' + cle, String(n + 1), fenetreS);
 }
@@ -425,6 +620,14 @@ function initialiser() {
   ss.getSheetByName(FEUILLE_JOURNAL).getRange('B:D').setNumberFormat('@');
   if (!PropertiesService.getScriptProperties().getProperty(PROP_TABLE)) sauverTable_(tbNouvelle());
   console.log('Initialisation terminée.');
+}
+
+/** À lancer après toute modification À LA MAIN de l'onglet Joueurs (solde, expiration...). */
+function viderCacheJoueurs() {
+  memo_ = nouveauMemo_();
+  var cles = joueurs_().map(function (l) { return cleFiche_(String(l[COL.jeton_hash - 1])); });
+  for (var i = 0; i < cles.length; i += 500) CacheService.getScriptCache().removeAll(cles.slice(i, i + 500));
+  console.log(cles.length + ' fiche(s) retirée(s) du cache.');
 }
 
 /** Vide la table (en cas de blocage). Les mises en cours sont remboursées. */
