@@ -6,7 +6,7 @@ Blackjack **multijoueur** dans le navigateur : une table de 5 places, un croupie
 - **F2 : table partagée** (chacun son tour contre le croupier, mises de 10 à 500 jetons)
 - **F3 : classement** (top 10)
 
-Le pourquoi, le périmètre et le modèle de menaces sont détaillés dans [cadrage.md](cadrage.md).
+Le pourquoi, le périmètre et le modèle de menaces sont détaillés dans [cadrage.md](cadrage.md). Le travail restant et qui fait quoi : [repartition.md](repartition.md).
 
 ## Structure
 
