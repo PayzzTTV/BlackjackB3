@@ -7,22 +7,29 @@
     Sécurité : GitHub Pages ne permet pas d'en-têtes HTTP, la CSP est donc posée ici.
     - aucun script inline, aucun script tiers, aucun eval
     - réseau limité à Google Apps Script
+    - polices auto-hébergées dans polices/ (font-src 'self'), aucune police tierce
     - Trusted Types : toute écriture HTML brute (innerHTML...) est bloquée par le navigateur
   -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
   <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#2a1a12">
   <title>Blackjack B3</title>
   <link rel="icon" href="data:,">
+  <link rel="preload" href="polices/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="polices/bodoni-moda-latin-600-italic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <script src="config.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
   <header class="entete">
-    <h1>Blackjack B3</h1>
+    <h1 class="marque">Blackjack <span class="marque-b3">B3</span></h1>
     <div class="profil" id="profil" hidden>
-      <span id="profil-pseudo"></span>
-      <span class="solde"><span id="profil-solde">0</span> jetons</span>
+      <span class="profil-pseudo" id="profil-pseudo"></span>
+      <span class="solde" aria-label="Votre solde">
+        <span class="jeton-icone" aria-hidden="true"></span>
+        <span id="profil-solde">0</span> jetons
+      </span>
       <button type="button" class="bouton-lien" id="btn-supprimer">Supprimer mon compte</button>
     </div>
   </header>
@@ -31,46 +38,79 @@
 
   <main>
     <!-- F1 : inscription par pseudo -->
-    <section class="carte-ecran" id="ecran-inscription" hidden>
-      <h2>Choisissez un pseudo</h2>
-      <p>Pas de mot de passe : votre session est gardée dans un cookie de ce navigateur pendant 30 jours.</p>
+    <section class="inscription" id="ecran-inscription" hidden>
+      <h2>Prenez place à la table</h2>
+      <p>Choisissez un pseudo, vous recevez 1 000 jetons. Pas de mot de passe : ce navigateur garde votre session pendant 30 jours.</p>
       <form id="form-inscription" novalidate>
         <label for="champ-pseudo">Pseudo</label>
         <input id="champ-pseudo" name="pseudo" autocomplete="off" spellcheck="false"
-               minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" required>
-        <small>3 à 16 caractères : lettres, chiffres, _</small>
+               minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" required
+               aria-describedby="aide-pseudo">
+        <small id="aide-pseudo">3 à 16 caractères : lettres, chiffres, _</small>
         <button type="submit" class="bouton-principal">Rejoindre le casino</button>
       </form>
     </section>
 
     <!-- F2 : table multijoueur -->
     <div class="disposition" id="ecran-jeu" hidden>
-      <section class="table" aria-label="Table de jeu">
-        <div class="croupier">
-          <h2>Croupier <span class="total" id="croupier-total"></span></h2>
-          <div class="main" id="croupier-cartes"></div>
-        </div>
+      <div class="salle">
+        <!-- Le rail (bord en cuir) entoure le tapis. Comme sur une vraie table de blackjack,
+             le croupier est sur le bord droit (en haut) et les joueurs sur l'arrondi (en bas). -->
+        <section class="rail" aria-label="Table de jeu">
+          <div class="tapis">
+            <div class="croupier">
+              <h2 class="croupier-titre">Croupier <span class="total" id="croupier-total"></span></h2>
+              <div class="main" id="croupier-cartes"></div>
+            </div>
 
-        <p class="annonce" id="annonce"></p>
+            <!-- Inscriptions imprimées sur le tapis : décoratives (aria-hidden), les règles sont dans l'aide. -->
+            <svg class="impression" viewBox="0 0 600 120" aria-hidden="true" focusable="false">
+              <path id="arc-impression" d="M 40 20 Q 300 120 560 20" fill="none"/>
+              <text class="impression-grand"><textPath href="#arc-impression" startOffset="50%" text-anchor="middle">Le blackjack paie 3 contre 2</textPath></text>
+              <path id="arc-impression-bas" d="M 90 52 Q 300 140 510 52" fill="none"/>
+              <text class="impression-petit"><textPath href="#arc-impression-bas" startOffset="50%" text-anchor="middle">Le croupier tire jusqu'à 16 et reste à 17</textPath></text>
+            </svg>
 
-        <ul class="places" id="places"></ul>
+            <div class="annonce-zone">
+              <p class="annonce" id="annonce"></p>
+              <div class="compte-a-rebours" id="compte-a-rebours" hidden><span id="compte-a-rebours-barre"></span></div>
+            </div>
 
+            <ul class="places" id="places"></ul>
+          </div>
+        </section>
+
+        <!-- Plateau de commandes, sous la table -->
         <div class="commandes">
-          <button type="button" id="btn-asseoir" class="bouton-principal">S'asseoir</button>
+          <button type="button" id="btn-asseoir" class="bouton-principal">S'asseoir à la table</button>
+
           <form id="form-mise" class="mise" novalidate>
-            <label for="champ-mise">Mise</label>
-            <input id="champ-mise" type="number" inputmode="numeric" step="10" value="50">
+            <div class="jetons-mise" role="group" aria-label="Ajouter des jetons à la mise">
+              <button type="button" class="jeton-bouton j10" data-valeur="10" aria-label="Ajouter 10">10</button>
+              <button type="button" class="jeton-bouton j50" data-valeur="50" aria-label="Ajouter 50">50</button>
+              <button type="button" class="jeton-bouton j100" data-valeur="100" aria-label="Ajouter 100">100</button>
+              <button type="button" class="jeton-bouton j500" data-valeur="500" aria-label="Ajouter 500">500</button>
+            </div>
+            <div class="mise-saisie">
+              <label for="champ-mise">Mise</label>
+              <input id="champ-mise" type="number" inputmode="numeric" step="10" value="50">
+              <button type="button" class="bouton-lien" id="btn-mise-effacer">Effacer</button>
+            </div>
             <button type="submit" class="bouton-principal">Miser</button>
           </form>
-          <button type="button" id="btn-tirer" class="bouton-principal">Tirer</button>
-          <button type="button" id="btn-rester" class="bouton-secondaire">Rester</button>
+
+          <div class="decision">
+            <button type="button" id="btn-tirer" class="bouton-principal">Tirer une carte</button>
+            <button type="button" id="btn-rester" class="bouton-secondaire">Rester</button>
+          </div>
+
           <button type="button" id="btn-quitter" class="bouton-lien">Quitter la table</button>
         </div>
-      </section>
+      </div>
 
       <!-- F3 : classement -->
-      <aside class="classement" aria-label="Classement">
-        <h2>Top 10</h2>
+      <aside class="classement" aria-labelledby="titre-classement">
+        <h2 id="titre-classement">Meilleurs soldes</h2>
         <ol id="classement"></ol>
       </aside>
     </div>

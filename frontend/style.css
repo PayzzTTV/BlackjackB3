@@ -1,132 +1,427 @@
+/*
+ * Blackjack B3 : feuille de style (rôle B).
+ *
+ * Direction visuelle : une vraie table de casino vue de dessus.
+ *  - le tapis vert-bleu (feutre), entouré d'un rail en cuir ;
+ *  - les inscriptions dorées imprimées sur le feutre, en Bodoni italique ;
+ *  - des cartes ivoire et des jetons de couleur, comme sur une table réelle.
+ * Le reste de l'interface (en-tête, classement, boutons) reste sobre pour laisser la table au centre.
+ *
+ * Polices auto-hébergées (polices/, licence SIL OFL) : Bodoni Moda pour les titres
+ * et les impressions du tapis, Barlow pour l'interface et les chiffres.
+ *
+ * Organisation : 1. jetons de design · 2. base · 3. en-tête · 4. inscription
+ * 5. table · 6. cartes · 7. places · 8. commandes · 9. classement · 10. petits écrans · 11. mouvement
+ */
+
+/* ---------- 1. Jetons de design ---------- */
+
+@font-face { font-family: "Barlow"; src: url("polices/barlow-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("polices/barlow-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Barlow"; src: url("polices/barlow-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Bodoni Moda"; src: url("polices/bodoni-moda-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+@font-face { font-family: "Bodoni Moda"; src: url("polices/bodoni-moda-latin-600-italic.woff2") format("woff2"); font-weight: 600; font-style: italic; font-display: swap; }
+
 :root {
-  --tapis: #0f5132;
-  --tapis-fonce: #0a3622;
-  --bois: #3b2414;
-  --or: #e9c46a;
-  --texte: #f8f9fa;
-  --texte-doux: #c7d3cc;
-  --rouge: #c1121f;
-  --carte: #fffdf7;
-  --rayon: 10px;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Matières de la table */
+  --feutre: #0d4a42;          /* tapis */
+  --feutre-clair: #14605a;    /* reflet de la lampe au-dessus de la table */
+  --feutre-ombre: #062b27;
+  --cuir: #2a1a12;            /* rail */
+  --cuir-clair: #4b2d1d;
+  --laiton: #d4af61;          /* impressions dorées, accent unique */
+  --laiton-pale: #ecd9a6;
+  --ivoire: #fbf7ee;          /* cartes */
+  --encre: #1b1612;
+  --rouge-carte: #b42318;
+
+  /* Couleurs des jetons (convention de casino : 10 bleu, 50 rouge, 100 noir, 500 violet) */
+  --jeton-10: #2f6fb0;
+  --jeton-50: #b42318;
+  --jeton-100: #22201d;
+  --jeton-500: #6b3fa0;
+
+  /* Interface */
+  --salle: #1c130f;           /* fond de la pièce */
+  --texte: #f4efe2;
+  --texte-doux: #b9c9c2;
+  --gagne: #9ee0b9;
+  --perdu: #f2a7a0;
+
+  --police-ui: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --police-titre: "Bodoni Moda", "Didot", Georgia, serif;
+
+  --rayon: 8px;
+  --carte-l: 54px;
+  --carte-h: 76px;
+
+  font-family: var(--police-ui);
+  font-size: 100%;
+  line-height: 1.45;
   color: var(--texte);
-  background: var(--tapis-fonce);
+  background: var(--salle);
 }
+
+/* ---------- 2. Base ---------- */
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(ellipse at top, var(--tapis) 0%, var(--tapis-fonce) 70%);
+  /* Une lampe suspendue au-dessus de la table : halo chaud au centre, pièce sombre autour. */
+  background:
+    radial-gradient(ellipse 70% 55% at 45% 30%, #3a2619 0%, rgba(58, 38, 25, 0) 70%),
+    var(--salle);
 }
 
-h1, h2 { margin: 0; font-weight: 700; }
-h1 { font-size: 1.4rem; color: var(--or); letter-spacing: .02em; }
-h2 { font-size: 1.05rem; }
+h1, h2 { margin: 0; }
+h2 { font-size: 1.05rem; font-weight: 600; }
 
 [hidden] { display: none !important; }
 
-/* ---------- En-tête ---------- */
-.entete {
-  display: flex; flex-wrap: wrap; gap: .75rem;
-  align-items: center; justify-content: space-between;
-  padding: .75rem 1rem;
-  background: var(--bois);
-  border-bottom: 3px solid var(--or);
+/* Texte réservé aux lecteurs d'écran */
+.lecteur-ecran {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-.profil { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
-.solde { color: var(--or); font-weight: 700; font-variant-numeric: tabular-nums; }
 
-main { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+main { max-width: 1180px; margin: 0 auto; padding: 1.25rem 1rem 2.5rem; }
 
 .message {
-  max-width: 1100px; margin: .75rem auto 0; padding: .6rem 1rem;
-  border-radius: var(--rayon); background: rgba(255, 255, 255, .1);
+  max-width: 1148px; margin: .9rem auto 0; padding: .65rem 1rem;
+  border-radius: var(--rayon);
+  background: rgba(244, 239, 226, .1);
+  border-left: 3px solid var(--laiton);
 }
-.message.erreur { background: rgba(193, 18, 31, .35); }
+.message.erreur { background: rgba(180, 35, 24, .28); border-left-color: var(--perdu); }
 
-/* ---------- Boutons ---------- */
+/* Boutons */
 button { font: inherit; cursor: pointer; border-radius: var(--rayon); }
-button:disabled { opacity: .5; cursor: not-allowed; }
-.bouton-principal { background: var(--or); color: #1d1d1d; border: 0; padding: .55rem 1.1rem; font-weight: 700; }
-.bouton-secondaire { background: transparent; color: var(--texte); border: 2px solid var(--or); padding: .45rem 1rem; font-weight: 700; }
-.bouton-lien { background: none; border: 0; color: var(--texte-doux); text-decoration: underline; padding: .25rem; }
-button:focus-visible, input:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+.bouton-principal {
+  background: var(--laiton); color: var(--encre);
+  border: 0; padding: .65rem 1.3rem; font-weight: 700;
+  box-shadow: 0 2px 0 #9c7d3a;
+}
+.bouton-principal:not(:disabled):hover { background: var(--laiton-pale); }
+.bouton-principal:not(:disabled):active { transform: translateY(1px); box-shadow: 0 1px 0 #9c7d3a; }
+
+.bouton-secondaire {
+  background: transparent; color: var(--texte);
+  border: 2px solid var(--laiton); padding: .55rem 1.2rem; font-weight: 700;
+}
+.bouton-secondaire:not(:disabled):hover { background: rgba(212, 175, 97, .14); }
+
+.bouton-lien {
+  background: none; border: 0; padding: .3rem;
+  color: var(--texte-doux); text-decoration: underline; text-underline-offset: 3px;
+}
+.bouton-lien:hover { color: var(--texte); }
+
+/* Focus clavier toujours visible, contrasté sur le feutre comme sur le cuir */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 3px solid var(--laiton-pale); outline-offset: 2px;
+}
 
 input {
-  font: inherit; padding: .5rem .6rem; border-radius: var(--rayon);
-  border: 1px solid #8aa597; background: #fff; color: #111;
+  font: inherit; padding: .55rem .7rem; border-radius: var(--rayon);
+  border: 1px solid #7f6a4c; background: var(--ivoire); color: var(--encre);
 }
 
-/* ---------- Inscription ---------- */
-.carte-ecran {
-  max-width: 420px; margin: 2rem auto; padding: 1.5rem;
-  background: rgba(0, 0, 0, .25); border-radius: var(--rayon);
-}
-.carte-ecran p, .carte-ecran small { color: var(--texte-doux); }
-.carte-ecran form { display: grid; gap: .5rem; margin-top: 1rem; }
+/* ---------- 3. En-tête ---------- */
 
-/* ---------- Disposition jeu ---------- */
-.disposition { display: grid; grid-template-columns: 1fr 240px; gap: 1rem; }
-@media (max-width: 760px) { .disposition { grid-template-columns: 1fr; } }
-
-.table {
-  padding: 1rem; border-radius: 120px 120px var(--rayon) var(--rayon);
-  border: 6px solid var(--bois);
-  background: var(--tapis);
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, .35);
+.entete {
+  display: flex; flex-wrap: wrap; gap: .75rem 1.25rem;
+  align-items: center; justify-content: space-between;
+  padding: .7rem max(1rem, calc((100% - 1148px) / 2));
+  background: linear-gradient(var(--cuir-clair), var(--cuir));
+  border-bottom: 1px solid #120b08;
 }
-@media (max-width: 760px) { .table { border-radius: var(--rayon); } }
+.marque {
+  font-family: var(--police-titre); font-weight: 700;
+  font-size: 1.55rem; line-height: 1; color: var(--ivoire); letter-spacing: .01em;
+}
+.marque-b3 { font-style: italic; font-weight: 600; color: var(--laiton); }
+
+.profil { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; }
+.profil-pseudo { font-weight: 600; }
+.solde {
+  display: inline-flex; align-items: center; gap: .4rem;
+  color: var(--laiton-pale); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+
+/* Petit jeton dessiné en CSS (bord à encoches) */
+.jeton-icone {
+  width: 1.05rem; height: 1.05rem; border-radius: 50%;
+  background: var(--laiton);
+  border: 3px dashed var(--cuir);
+  box-shadow: 0 0 0 1px var(--laiton);
+}
+
+/* ---------- 4. Inscription ---------- */
+
+.inscription {
+  max-width: 440px; margin: 3rem auto; padding: 2rem 1.75rem 1.75rem;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 50% 0%, var(--feutre-clair), var(--feutre) 70%);
+  border: 10px solid var(--cuir);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(212, 175, 97, .35);
+}
+.inscription h2 {
+  font-family: var(--police-titre); font-style: italic; font-weight: 600;
+  font-size: 1.7rem; line-height: 1.15; color: var(--laiton-pale);
+}
+.inscription p { color: var(--texte-doux); margin: .6rem 0 0; max-width: 60ch; }
+.inscription form { display: grid; gap: .45rem; margin-top: 1.4rem; }
+.inscription label { font-weight: 600; }
+.inscription small { color: var(--texte-doux); }
+.inscription .bouton-principal { margin-top: .6rem; padding: .8rem 1.3rem; }
+
+/* ---------- 5. Table ---------- */
+
+.disposition {
+  display: grid; grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 1.5rem; align-items: start;
+}
+
+.salle { min-width: 0; }
+
+/* Le rail en cuir : forme en « D », bord droit en haut (croupier), arrondi en bas (joueurs). */
+.rail {
+  padding: 16px;
+  border-radius: 28px 28px 50% 50% / 28px 28px 34% 34%;
+  background: linear-gradient(160deg, var(--cuir-clair), var(--cuir) 55%, #1a0f0a);
+  box-shadow: 0 22px 45px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+
+.tapis {
+  position: relative;
+  padding: 1.2rem 1.5rem 3.5rem;
+  border-radius: 16px 16px 50% 50% / 16px 16px 33% 33%;
+  background:
+    radial-gradient(ellipse 60% 45% at 50% 25%, var(--feutre-clair), rgba(20, 96, 90, 0) 75%),
+    var(--feutre);
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, .45), inset 0 0 0 2px rgba(212, 175, 97, .25);
+}
 
 .croupier { text-align: center; }
-.total { color: var(--texte-doux); font-weight: 400; }
-.annonce { text-align: center; color: var(--or); font-weight: 600; min-height: 1.4em; margin: .75rem 0; }
+.croupier-titre {
+  font-family: var(--police-titre); font-style: italic; font-weight: 600;
+  font-size: 1.15rem; color: var(--laiton-pale);
+}
+.total { font-family: var(--police-ui); font-style: normal; font-weight: 600; color: var(--texte-doux); font-variant-numeric: tabular-nums; }
+
+/* Inscriptions dorées sur l'arc du tapis (SVG statique) */
+.impression { display: block; width: min(100%, 600px); height: auto; margin: -.2rem auto -.6rem; }
+.impression text { fill: var(--laiton); font-family: var(--police-titre); font-style: italic; font-weight: 600; }
+.impression-grand { font-size: 21px; letter-spacing: .04em; }
+.impression-petit { font-size: 13px; letter-spacing: .06em; opacity: .75; }
+
+.annonce-zone { max-width: 26rem; margin: 0 auto 1.1rem; text-align: center; }
+.annonce { margin: 0; min-height: 1.5em; font-weight: 600; font-size: 1.05rem; color: var(--ivoire); }
+
+/* Compte à rebours : une barre de laiton qui se vide (largeur pilotée par app.js) */
+.compte-a-rebours {
+  height: 4px; margin-top: .4rem; border-radius: 2px;
+  background: rgba(0, 0, 0, .3); overflow: hidden;
+}
+.compte-a-rebours span { display: block; height: 100%; width: 100%; background: var(--laiton); transition: width .5s linear; }
+.compte-a-rebours.urgent span { background: var(--perdu); }
+
+/* ---------- 6. Cartes ---------- */
+
+.main {
+  display: flex; flex-wrap: nowrap; justify-content: center;
+  min-height: calc(var(--carte-h) + 8px); margin: .45rem 0; padding-top: 4px;
+}
+/* Les cartes se chevauchent comme une main posée sur le tapis */
+.main .carte + .carte { margin-left: calc(var(--carte-l) * -0.42); }
+
+.carte {
+  position: relative; flex: none;
+  width: var(--carte-l); height: var(--carte-h);
+  border-radius: 6px;
+  background: var(--ivoire); color: var(--encre);
+  box-shadow: 0 1px 0 #d9d2c1, 0 4px 8px rgba(0, 0, 0, .35);
+  font-weight: 700; line-height: 1;
+}
+.carte.rouge { color: var(--rouge-carte); }
+/* Index en haut à gauche (lisible quand les cartes se chevauchent) */
+.carte .rang { position: absolute; top: 5px; left: 6px; font-size: 1rem; letter-spacing: -.03em; }
+.carte .couleur-coin { position: absolute; top: 22px; left: 6px; font-size: .75rem; }
+/* Grand symbole au centre */
+.carte .couleur { position: absolute; right: 7px; bottom: 6px; font-size: 1.7rem; }
+
+/* Dos de carte : treillis bordeaux et laiton */
+.carte.dos {
+  background:
+    repeating-linear-gradient(45deg, rgba(212, 175, 97, .55) 0 1px, transparent 1px 7px),
+    repeating-linear-gradient(-45deg, rgba(212, 175, 97, .55) 0 1px, transparent 1px 7px),
+    #6e1b1b;
+  border: 3px solid var(--ivoire);
+}
+
+/* ---------- 7. Places ---------- */
 
 .places {
   list-style: none; padding: 0; margin: 0;
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .6rem;
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .7rem;
 }
+/* Les places suivent l'arrondi de la table : celles du centre sont plus bas. */
+.places > :nth-child(2), .places > :nth-child(4) { margin-top: 1.6rem; }
+.places > :nth-child(3) { margin-top: 2.4rem; }
+
 .place {
-  padding: .6rem; border-radius: var(--rayon);
-  background: rgba(0, 0, 0, .22); border: 2px solid transparent; min-height: 130px;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  min-height: 150px; padding: .5rem .4rem .6rem;
+  border-radius: 12px;
+  /* Case imprimée sur le feutre */
+  border: 1.5px solid rgba(212, 175, 97, .45);
+  background: rgba(6, 43, 39, .35);
+  text-align: center;
 }
-.place.libre { display: grid; place-items: center; color: var(--texte-doux); border: 2px dashed rgba(255, 255, 255, .2); }
-.place.moi { border-color: rgba(233, 196, 106, .5); }
-.place.actif { border-color: var(--or); box-shadow: 0 0 12px rgba(233, 196, 106, .6); }
-.tete { display: flex; justify-content: space-between; gap: .3rem; font-size: .9rem; }
-.tete .pseudo { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
-.jetons { color: var(--or); font-variant-numeric: tabular-nums; }
-.statut { font-size: .85rem; margin-top: .3rem; color: var(--texte-doux); }
-.statut.gagne, .statut.blackjack { color: #95d5b2; font-weight: 700; }
-.statut.perdu, .statut.saute { color: #ffadad; }
-
-/* ---------- Cartes ---------- */
-.main { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center; margin: .4rem 0; min-height: 64px; }
-.carte {
-  width: 44px; height: 62px; border-radius: 6px;
-  background: var(--carte); color: #111;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, .4); font-weight: 700; line-height: 1;
+.place.libre {
+  justify-content: center;
+  border-style: dashed; border-color: rgba(212, 175, 97, .25);
+  background: transparent;
+  color: rgba(244, 239, 226, .5); font-style: italic; font-family: var(--police-titre);
 }
-.carte.rouge { color: var(--rouge); }
-.carte .couleur { font-size: 1.2rem; }
-.carte.dos {
-  background: repeating-linear-gradient(45deg, #7a1c1c 0 6px, #9b2c2c 6px 12px);
-  border: 2px solid var(--carte);
+.place.moi { border-color: var(--laiton); background: rgba(6, 43, 39, .55); }
+/* Joueur dont c'est le tour : halo doré */
+.place.actif {
+  border-color: var(--laiton-pale);
+  box-shadow: 0 0 0 3px rgba(212, 175, 97, .35), 0 0 22px rgba(236, 217, 166, .35);
 }
 
-/* ---------- Commandes ---------- */
+.tete { display: flex; flex-direction: column; align-items: center; gap: .15rem; width: 100%; }
+.tete .pseudo {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600; font-size: .92rem;
+}
+.tete .vous { font-weight: 400; color: var(--laiton-pale); }
+
+/* La mise posée devant le joueur, sous forme de jeton */
+.mise-jeton {
+  display: inline-grid; place-items: center;
+  min-width: 2.3rem; height: 2.3rem; padding: 0 .3rem; border-radius: 50%;
+  font-size: .78rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
+  background: var(--jeton-50);
+  border: 3px dashed rgba(255, 255, 255, .85);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .45);
+}
+.mise-jeton.j10 { background: var(--jeton-10); }
+.mise-jeton.j100 { background: var(--jeton-100); }
+.mise-jeton.j500 { background: var(--jeton-500); }
+
+.statut { margin-top: auto; font-size: .85rem; color: var(--texte-doux); font-variant-numeric: tabular-nums; }
+.statut .main-total { color: var(--texte); font-weight: 700; }
+
+/* Résultat de fin de manche */
+.resultat {
+  display: inline-block; margin-top: .25rem; padding: .15rem .55rem; border-radius: 999px;
+  font-weight: 700; font-size: .85rem;
+}
+.resultat.gagne { color: #0b2e22; background: var(--gagne); }
+.resultat.blackjack { color: var(--encre); background: var(--laiton); }
+.resultat.egalite { color: var(--texte); background: rgba(244, 239, 226, .18); }
+.resultat.perdu, .resultat.saute { color: #3b0d09; background: var(--perdu); }
+
+/* ---------- 8. Commandes ---------- */
+
 .commandes {
-  display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; justify-content: center;
-  margin-top: 1rem;
+  display: flex; flex-wrap: wrap; gap: .8rem 1rem; align-items: center; justify-content: center;
+  margin-top: 1.4rem; padding: 1rem;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, .28);
+  border: 1px solid rgba(212, 175, 97, .18);
 }
-.mise { display: flex; gap: .4rem; align-items: center; }
-.mise input { width: 6rem; }
 
-/* ---------- Classement ---------- */
-.classement { padding: 1rem; border-radius: var(--rayon); background: rgba(0, 0, 0, .25); align-self: start; }
-.classement ol { margin: .5rem 0 0; padding-left: 1.4rem; }
-.classement li { padding: .2rem 0; }
-.classement li .pseudo { display: inline-block; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
-.classement li .jetons { float: right; }
+.mise { display: flex; flex-wrap: wrap; gap: .8rem; align-items: center; justify-content: center; }
+.mise-saisie { display: flex; gap: .4rem; align-items: center; }
+.mise-saisie label { font-weight: 600; }
+.mise-saisie input { width: 6.5rem; font-variant-numeric: tabular-nums; }
+
+/* Jetons cliquables pour composer la mise */
+.jetons-mise { display: flex; gap: .45rem; }
+.jeton-bouton {
+  width: 3rem; height: 3rem; padding: 0; border-radius: 50%;
+  color: #fff; font-weight: 700; font-size: .85rem;
+  border: 4px dashed rgba(255, 255, 255, .85);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .35), 0 3px 6px rgba(0, 0, 0, .45);
+}
+.jeton-bouton.j10 { background: var(--jeton-10); }
+.jeton-bouton.j50 { background: var(--jeton-50); }
+.jeton-bouton.j100 { background: var(--jeton-100); }
+.jeton-bouton.j500 { background: var(--jeton-500); }
+.jeton-bouton:not(:disabled):hover { transform: translateY(-2px); }
+.jeton-bouton:not(:disabled):active { transform: translateY(1px); }
+
+.decision { display: flex; gap: .7rem; }
+.decision .bouton-principal, .decision .bouton-secondaire { min-width: 8rem; padding-top: .8rem; padding-bottom: .8rem; }
+
+/* ---------- 9. Classement ---------- */
+
+.classement {
+  padding: 1.1rem 1.1rem 1rem;
+  border-radius: 14px;
+  background: linear-gradient(var(--cuir-clair), var(--cuir));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .4);
+}
+.classement h2 { font-family: var(--police-titre); font-style: italic; font-weight: 600; font-size: 1.2rem; color: var(--laiton-pale); }
+.classement ol { margin: .7rem 0 0; padding: 0; list-style: none; counter-reset: rang; }
+.classement li {
+  counter-increment: rang;
+  display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; gap: .4rem;
+  padding: .35rem 0; border-top: 1px solid rgba(212, 175, 97, .15);
+  font-variant-numeric: tabular-nums;
+}
+.classement li::before { content: counter(rang); color: var(--laiton); font-weight: 700; }
+.classement li .pseudo { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.classement li .jetons { color: var(--laiton-pale); font-weight: 600; }
+.classement li.moi .pseudo { color: var(--laiton-pale); font-weight: 700; }
+
+/* ---------- 10. Petits écrans ---------- */
+
+@media (max-width: 900px) {
+  .disposition { grid-template-columns: 1fr; }
+  .places { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .places > :nth-child(n) { margin-top: 0; }
+  .rail { border-radius: 24px 24px 40% 40% / 24px 24px 12% 12%; }
+  .tapis { border-radius: 14px 14px 38% 38% / 14px 14px 11% 11%; }
+}
+
+@media (max-width: 560px) {
+  :root { --carte-l: 42px; --carte-h: 60px; }
+  main { padding: .75rem .5rem 2rem; }
+  .entete { padding: .6rem .75rem; }
+  .marque { font-size: 1.3rem; }
+  .rail { padding: 9px; border-radius: 18px; }
+  .tapis { padding: .9rem .6rem 1.2rem; border-radius: 12px; }
+  .impression { display: none; }
+  .places { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .place { min-height: 128px; }
+  .carte .rang { top: 4px; left: 4px; font-size: .85rem; }
+  .carte .couleur-coin { top: 18px; left: 4px; font-size: .65rem; }
+  .carte .couleur { right: 5px; bottom: 4px; font-size: 1.3rem; }
+  .jeton-bouton { width: 2.75rem; height: 2.75rem; }
+  .decision { width: 100%; }
+  .decision > * { flex: 1; min-width: 0; }
+  .inscription { margin: 1.5rem auto; padding: 1.5rem 1.1rem; }
+}
+
+/* ---------- 11. Mouvement ---------- */
+
+/* Une carte qui vient d'être distribuée glisse depuis le sabot (en haut à droite). Seules les
+   NOUVELLES cartes reçoivent la classe .distribuee (voir app.js), pas celles déjà sur la table. */
+.carte.distribuee { animation: distribuer .32s cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes distribuer {
+  from { transform: translate(90px, -120px) rotate(14deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
