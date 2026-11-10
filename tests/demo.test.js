@@ -63,9 +63,10 @@ function executerPage(scripts, cookiesInitiaux) {
       getItem: (k) => (stockage.has(k) ? stockage.get(k) : null),
       setItem: (k, v) => stockage.set(k, String(v)), removeItem: (k) => stockage.delete(k)
     },
+    // Temps accéléré ×100 en gardant les proportions (latence simulée < délai d'expiration).
     setTimeout: (fn, ms) => {
       if (!actif) return 0;
-      const id = setTimeout(() => { minuteurs.delete(id); if (actif) fn(); }, Math.min(ms || 0, 5));
+      const id = setTimeout(() => { minuteurs.delete(id); if (actif) fn(); }, Math.max(1, (ms || 0) / 100));
       minuteurs.add(id);
       return id;
     },
@@ -75,7 +76,7 @@ function executerPage(scripts, cookiesInitiaux) {
     matchMedia: () => ({ matches: false, addEventListener() {}, addListener() {} }),
     confirm: () => true, alert() {},
     addEventListener() {}, removeEventListener() {},
-    AbortController, Promise, JSON, Math, Date, Object, Array, Number, String, TypeError, Error, Map, Set
+    AbortController, DOMException, Promise, JSON, Math, Date, Object, Array, Number, String, TypeError, Error, Map, Set
   };
   ctx.window = ctx;
   ctx.self = ctx;
