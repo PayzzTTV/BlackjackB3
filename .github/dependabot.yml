@@ -2,5 +2,9 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    # Système de branches : les mises à jour passent par develop, jamais directement par main.
+    target-branch: develop
     schedule:
       interval: weekly
+    commit-message:
+      prefix: "ci"
