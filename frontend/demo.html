@@ -30,6 +30,7 @@
 <body>
   <header class="entete">
     <h1 class="marque">Blackjack <span class="marque-b3">B3</span></h1>
+    <button type="button" class="bouton-aide" id="btn-aide" aria-haspopup="dialog" aria-controls="aide">Règles du jeu</button>
     <div class="profil" id="profil" hidden>
       <span class="profil-pseudo" id="profil-pseudo"></span>
       <span class="solde" aria-label="Votre solde">
@@ -54,7 +55,12 @@
     <!-- F1 : inscription par pseudo -->
     <section class="inscription" id="ecran-inscription" hidden>
       <h2>Prenez place à la table</h2>
-      <p>Choisissez un pseudo, vous recevez 1 000 jetons. Pas de mot de passe : ce navigateur garde votre session pendant 30 jours.</p>
+      <p>Choisissez un pseudo, vous recevez 1 000 jetons.</p>
+      <div class="avertissement" role="note">
+        <strong>Votre cookie est votre compte.</strong>
+        Il n'y a pas de mot de passe : ce navigateur garde votre session 30 jours. Si vous effacez les cookies,
+        utilisez la navigation privée ou changez d'appareil, le compte et ses jetons sont perdus, sans récupération possible.
+      </div>
       <form id="form-inscription" novalidate>
         <label for="champ-pseudo">Pseudo</label>
         <input id="champ-pseudo" name="pseudo" autocomplete="off" spellcheck="false"
@@ -129,6 +135,50 @@
       </aside>
     </div>
   </main>
+
+  <!-- Aide intégrée : fenêtre modale native (<dialog>), ouverte par le bouton « Règles du jeu ».
+       Contenu statique : rien n'est injecté par JavaScript. Les valeurs reprennent celles du serveur
+       (backend/Code.gs et backend/Table.gs) : à mettre à jour si A les change. -->
+  <dialog class="aide" id="aide" aria-labelledby="aide-titre">
+    <div class="aide-entete">
+      <h2 id="aide-titre">Règles du jeu</h2>
+      <button type="button" class="bouton-lien" id="btn-aide-fermer">Fermer</button>
+    </div>
+
+    <h3>Le but</h3>
+    <p>Approcher 21 sans le dépasser, et faire mieux que le croupier. Chaque joueur joue contre le croupier, pas contre les autres.</p>
+
+    <h3>La valeur des cartes</h3>
+    <ul>
+      <li>De 2 à 10 : leur valeur.</li>
+      <li>Valet (V), Dame (D), Roi (R) : 10.</li>
+      <li>As : 11, ou 1 si 11 vous ferait dépasser 21.</li>
+    </ul>
+
+    <h3>Une manche</h3>
+    <ol>
+      <li>Asseyez-vous : la table a 5 places.</li>
+      <li>Misez entre 10 et 500 jetons. Les cartes sont distribuées quand tous les joueurs assis ont misé, ou 15 s après la première mise.</li>
+      <li>À votre tour, <em>Tirer une carte</em> ou <em>Rester</em>. Vous avez 30 s, après quoi vous restez automatiquement.</li>
+      <li>Le croupier tire jusqu'à 16 et reste à partir de 17. Une nouvelle manche commence 8 s plus tard.</li>
+    </ol>
+
+    <h3>Les gains</h3>
+    <ul>
+      <li>Vous battez le croupier : vous gagnez votre mise.</li>
+      <li>Blackjack (21 avec vos 2 premières cartes) : payé 3 contre 2, soit 75 jetons pour 50 misés.</li>
+      <li>Égalité : votre mise est remboursée.</li>
+      <li>Plus de 21, ou moins que le croupier : la mise est perdue.</li>
+    </ul>
+
+    <h3>Bon à savoir</h3>
+    <ul>
+      <li>Sous 10 jetons, votre solde est remis à 1 000 à la mise suivante.</li>
+      <li>Quitter la table pendant votre main abandonne la mise. Avant la distribution, elle est remboursée.</li>
+      <li>Après 3 manches sans miser, vous êtes retiré de la table.</li>
+      <li>Votre compte n'existe que dans ce navigateur (cookie de 30 jours). « Supprimer mon compte » efface vos jetons et libère votre pseudo.</li>
+    </ul>
+  </dialog>
 
   <noscript><p class="message">JavaScript est nécessaire pour jouer.</p></noscript>
 </body>
