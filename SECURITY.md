@@ -55,4 +55,4 @@ Ces points sont des **limites connues et assumées**, documentées dans [cadrage
 - Verrou global, quotas, validation stricte des entrées, neutralisation des formules.
 - CSP stricte + Trusted Types, aucune dépendance tierce dans le front.
 - Scope Google minimal (`spreadsheets.currentonly`), Sheet non partagé.
-- CI : 37 tests dont des tests d'attaque, CodeQL (`security-extended`), Dependabot, actions épinglées par SHA, test-garde contre les secrets commités.
+- CI : 38 tests dont des tests d'attaque, CodeQL (`security-extended`), Dependabot, actions épinglées par SHA, test-garde contre les secrets commités.
