@@ -1,0 +1,25 @@
+/*
+ * Mode démo (rôle B) : style du panneau de réglages ajouté par demo.js.
+ * Chargé uniquement par demo.html. Le panneau est un <details> replié par défaut,
+ * dans le même matériau « verre » que le reste de l'interface.
+ */
+.demo-panneau {
+  position: fixed; left: 12px; bottom: 12px; z-index: 50;
+  max-width: 16rem; padding: .5rem .85rem;
+  font-size: .8125rem; line-height: 1.35;
+  color: #fff; background: rgba(28, 28, 30, .8);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px;
+}
+.demo-panneau summary { cursor: pointer; font-weight: 600; color: #ff9f0a; }
+.demo-contenu { display: grid; gap: .5rem; margin-top: .55rem; }
+.demo-aide { color: rgba(235, 235, 245, .6); }
+.demo-panneau select, .demo-panneau button {
+  font: inherit; padding: .3rem .55rem; border: 0; border-radius: 8px;
+  color: #fff; background: rgba(118, 118, 128, .3);
+}
+.demo-panneau :focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(10, 132, 255, .6); }
+@media (max-width: 600px) {
+  .demo-panneau { position: static; max-width: none; margin: 1rem; }
+}

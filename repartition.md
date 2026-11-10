@@ -8,8 +8,8 @@ Le code est écrit, testé et publié sur GitHub, mais **le jeu ne tourne pas en
 |---|---|---|
 | **A** Back et déploiement Google | _à attribuer_ | `backend/`, le Google Sheet, le déploiement Apps Script |
 | **B** Front et expérience de jeu | _à attribuer_ | `frontend/` (sauf `config.js`) |
-| **C** Sécurité et dépôt GitHub | _à attribuer_ | `.github/`, `SECURITY.md`, `docs/pentest.md` |
-| **D** Qualité, coordination, livrables | _à attribuer_ | `tests/`, `README.md`, `cadrage.md`, soutenance |
+| **C** Sécurité et dépôt GitHub | Alexis | `.github/`, `SECURITY.md`, `docs/pentest.md` |
+| **D** Qualité, coordination, livrables | Emir | `tests/`, `README.md`, `cadrage.md`, soutenance |
 
 > Mettez vos prénoms dans la colonne « Personne » via une PR. C'est la première PR de chacun.
 
@@ -19,7 +19,7 @@ Le code est écrit, testé et publié sur GitHub, mais **le jeu ne tourne pas en
 
 ```
 main ─────●──────────────────────────●──────────▶  production : déployée sur GitHub Pages
-           \                         ↑ PR « release » (develop → main), relue par 2 personnes
+           \                         ↑ PR « release » (develop → main), relue par 1 personne
 develop ────●────●────────●────●────●──────────▶  intégration : tout le monde merge ici
              \   ↑         \   ↑
               \  PR         \  PR (relue par 1 personne d'un autre rôle, CI verte)
@@ -53,7 +53,7 @@ Si `develop` a avancé pendant votre travail : `git pull --rebase origin develop
 
 ### Mise en production
 
-Quand `develop` est stable (recette OK sur ce qui a été ajouté) : PR **`develop` → `main`** intitulée `release: <résumé>`, relue par **2 personnes**, fusionnée en **Merge commit**. Le workflow Pages redéploie le site automatiquement.
+Quand `develop` est stable (recette OK sur ce qui a été ajouté) : PR **`develop` → `main`** intitulée `release: <résumé>`, relue par **1 personne** d'un autre rôle, fusionnée en **Merge commit**. Le workflow Pages redéploie le site automatiquement.
 
 ### Messages de commit
 
@@ -66,12 +66,14 @@ Ex. `fix: ignorer les réponses de sondage périmées`.
 | Règle | `main` | `develop` |
 |---|---|---|
 | PR obligatoire avant merge | ✅ | ✅ |
-| Relectures requises | 2 | 1 |
+| Relectures requises | 1 | 1 |
 | CI « Tests » verte exigée | ✅ | ✅ |
 | Branche à jour avant merge | ✅ | ✅ |
 | Annuler les approbations si nouveau commit | ✅ | ✅ |
 | Force-push et suppression interdits | ✅ | ✅ |
 | S'applique aussi aux admins | ✅ | ✅ |
+
+> **Changement du 2026-11-10 :** `main` est passée de 2 à 1 relecture. À 5, exiger 2 relecteurs disponibles en plus de l'auteur bloquait les mises en ligne. Les protections ✅ sont actives (vérifiées via l'API GitHub). La relecture d'une release doit toujours être faite par quelqu'un d'un autre rôle que l'auteur.
 
 ---
 
@@ -167,7 +169,7 @@ Anime le point quotidien de 10 min.
 |---|---|---|
 | Toute la phase 2 (B mobile, C pentest, D recette) | A : site branché sur l'API | B en mode démo, C sur GitHub, D sur le plan de recette |
 | Fusion de toute PR | C : protection de `main` et `develop` active | Travailler sur sa branche |
-| Mise en ligne d'une correction | PR `develop` → `main` relue par 2 personnes | Elle est déjà testable sur `develop` en local |
+| Mise en ligne d'une correction | PR `develop` → `main` relue par 1 personne | Elle est déjà testable sur `develop` en local |
 | Recette finale (D) | Corrections de A et B, rapport de C | Recette partielle des critères déjà prêts |
 | Soutenance (D) | Recette verte | Préparer le support et le scénario |
 
