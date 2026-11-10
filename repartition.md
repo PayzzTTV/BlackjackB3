@@ -80,7 +80,7 @@ Ex. `fix: ignorer les réponses de sondage périmées`.
 **Fait et vérifié**
 - Front HTML/CSS/JS : table à 5 places, inscription par pseudo, classement
 - Back Apps Script : sessions par cookie, logique de table côté serveur, quotas, verrous
-- 37 tests Node verts (règles, table, attaques sur l'API)
+- 38 tests Node verts (règles, table, attaques sur l'API)
 - CI GitHub Actions verte, site en ligne sur https://payzzttv.github.io/BlackjackB3/
 - URL de l'API gérée par le secret GitHub `BJ_API_URL`, `README.md` et `cadrage.md`
 

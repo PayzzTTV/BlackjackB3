@@ -9,6 +9,9 @@ credentials*.json
 client_secret*.json
 service-account*.json
 
+# Copie temporaire du back pour l'analyse CodeQL (générée en CI)
+codeql-gs/
+
 # Divers
 node_modules/
 .DS_Store
