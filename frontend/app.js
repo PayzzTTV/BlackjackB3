@@ -27,9 +27,15 @@
     attente: 'En attente', mise: 'A misé', joue: 'Joue…', reste: 'Reste', saute: 'Sauté !', blackjack: 'Blackjack !'
   };
 
+  // États de chargement : Apps Script met 1 à 3 s à répondre au premier appel (démarrage à froid).
+  var SEUIL_LENT_MS = 1500;   // au-delà, on prévient que le serveur est lent
+  var DELAI_MAX_MS = 15000;   // au-delà, on abandonne la requête (AbortController)
+
   var $ = function (id) { return document.getElementById(id); };
   var etat = {
     jeton: null, vue: null, echeance: null, requeteEnCours: false, minuteur: null,
+    // Connexion : nombre de requêtes lentes en cours, et dernier sondage échoué (serveur injoignable).
+    lentes: 0, horsLigne: false, messageConnexion: false,
     // Nombre de cartes déjà affichées par main, pour n'animer que les nouvelles (voir marquerNouvelles).
     cartesVues: { manche: null, mains: {} },
     // Durée totale du décompte en cours, pour dessiner la barre (le serveur ne donne que le restant).
@@ -63,11 +69,31 @@
 
   /* ---------------- Appels API ---------------- */
 
+  /**
+   * Appelle l'API et renvoie une promesse de `data`.
+   * En cas d'échec, l'erreur porte un `code` :
+   *  - code du serveur (ex. 'pas_ton_tour'), avec son message ;
+   *  - 'reseau' : serveur injoignable (hors ligne, DNS, CORS...) ;
+   *  - 'delai'  : pas de réponse après DELAI_MAX_MS, la requête est annulée.
+   * Toute requête qui dépasse SEUIL_LENT_MS allume l'indicateur « serveur lent ».
+   */
   function api(action, donnees) {
     var corps = { action: action };
     if (etat.jeton) corps.jeton = etat.jeton;
     Object.keys(donnees || {}).forEach(function (k) { corps[k] = donnees[k]; });
-    return fetch(CONFIG.API_URL, {
+
+    var controleur = new AbortController();
+    var annulee = false;
+    var estLente = false;
+    var minuteurLent = setTimeout(function () { estLente = true; etat.lentes++; majConnexion(); }, SEUIL_LENT_MS);
+    var minuteurMax = setTimeout(function () { annulee = true; controleur.abort(); }, DELAI_MAX_MS);
+    function terminer() {
+      clearTimeout(minuteurLent);
+      clearTimeout(minuteurMax);
+      if (estLente) { etat.lentes--; majConnexion(); }
+    }
+
+    var promesse = fetch(CONFIG.API_URL, {
       method: 'POST',
       // text/plain : requête « simple » sans pré-vol CORS (Apps Script ne gère pas OPTIONS).
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -75,7 +101,8 @@
       credentials: 'omit',
       cache: 'no-store',
       redirect: 'follow',
-      referrerPolicy: 'no-referrer'
+      referrerPolicy: 'no-referrer',
+      signal: controleur.signal
     })
       .then(function (r) {
         if (!r.ok) throw new Error('reseau');
@@ -88,13 +115,56 @@
         throw err;
       }, function (err) {
         if (err && err.code) throw err;
-        var e = new Error('Connexion au serveur impossible.');
-        e.code = 'reseau';
+        var e = annulee
+          ? new Error('Le serveur ne répond pas (plus de ' + (DELAI_MAX_MS / 1000) + ' s). Réessayez dans un instant.')
+          : new Error('Serveur injoignable. Vérifiez votre connexion internet.');
+        e.code = annulee ? 'delai' : 'reseau';
         throw e;
       });
+    promesse.then(terminer, terminer);
+    return promesse;
+  }
+
+  /** Vrai si l'erreur vient du transport (réseau, délai) et pas d'un refus du serveur. */
+  function estErreurConnexion(err) {
+    return err && (err.code === 'reseau' || err.code === 'delai');
+  }
+
+  /** Appelé à chaque réponse réussie : masque le bandeau et l'éventuel message d'erreur réseau. */
+  function connexionRetablie() {
+    if (etat.messageConnexion) { afficherMessage(''); etat.messageConnexion = false; }
+    if (etat.horsLigne) { etat.horsLigne = false; majConnexion(); }
+  }
+
+  /** Affiche ou masque le bandeau d'état de la connexion (lent / injoignable). */
+  function majConnexion() {
+    var n = $('connexion');
+    var texte = etat.horsLigne ? 'Connexion perdue : nouvel essai automatique toutes les quelques secondes.'
+      : etat.lentes > 0 ? 'Le serveur répond lentement, patientez…' : '';
+    n.textContent = texte;
+    n.hidden = !texte;
+    n.classList.toggle('hors-ligne', etat.horsLigne);
+  }
+
+  /**
+   * Marque un bouton « en cours » (indicateur animé + aria-busy) et renvoie la fonction qui le libère.
+   * Le bouton est désactivé pour empêcher un double envoi.
+   */
+  function occuper(bouton) {
+    if (!bouton) return function () {};
+    bouton.disabled = true;
+    bouton.classList.add('en-cours');
+    bouton.setAttribute('aria-busy', 'true');
+    return function liberer() {
+      bouton.disabled = false;
+      bouton.classList.remove('en-cours');
+      bouton.removeAttribute('aria-busy');
+    };
   }
 
   function gererErreur(err) {
+    // Retenu pour effacer ce message tout seul quand la connexion revient (voir connexionRetablie).
+    etat.messageConnexion = estErreurConnexion(err);
     if (err.code === 'session_invalide') {
       deconnecterLocalement();
     }
@@ -238,6 +308,7 @@
     $('profil-pseudo').textContent = data.moi.pseudo;
     $('profil-solde').textContent = String(data.moi.solde);
     $('ecran-inscription').hidden = true;
+    $('ecran-chargement').hidden = true;
     $('ecran-jeu').hidden = false;
 
     // Fin de manche : les soldes ont changé, on rafraîchit le classement tout de suite.
@@ -328,6 +399,7 @@
 
   function afficherInscription() {
     $('profil').hidden = true;
+    $('ecran-chargement').hidden = true;
     $('ecran-jeu').hidden = true;
     $('ecran-inscription').hidden = false;
   }
@@ -344,7 +416,17 @@
     if (!etat.jeton || etat.requeteEnCours || document.hidden) return planifier();
     etat.requeteEnCours = true;
     api('etat')
-      .then(afficherJeu, gererErreur)
+      .then(function (data) {
+        connexionRetablie();
+        afficherJeu(data);
+      }, function (err) {
+        if (!estErreurConnexion(err)) return gererErreur(err);
+        // Panne réseau pendant le sondage : bandeau discret, le sondage continue tout seul.
+        etat.horsLigne = true;
+        majConnexion();
+        // Tout premier chargement sans réponse : on explique au lieu de laisser un écran vide.
+        if (!etat.vue) $('chargement-texte').textContent = err.message + ' Nouvel essai en cours…';
+      })
       .then(function () { etat.requeteEnCours = false; planifier(); });
   }
 
@@ -362,14 +444,28 @@
     api('classement').then(afficherClassement, function () { /* non bloquant */ });
   }
 
-  /** Action de jeu : boutons désactivés pendant l'appel (pas de double clic). */
-  function agir(action, donnees) {
+  /**
+   * Action de jeu : toutes les commandes sont désactivées pendant l'appel (pas de double clic)
+   * et le bouton cliqué affiche un indicateur, pour qu'aucun clic ne paraisse « mort ».
+   * @param {string} action nom de l'action côté serveur
+   * @param {Object} [donnees] paramètres (ex. { mise: 50 })
+   * @param {HTMLElement} [bouton] bouton à l'origine de l'action
+   */
+  function agir(action, donnees, bouton) {
     var boutons = document.querySelectorAll('.commandes button');
     boutons.forEach(function (b) { b.disabled = true; });
+    var liberer = occuper(bouton);
     afficherMessage('');
     return api(action, donnees)
-      .then(afficherJeu, gererErreur)
-      .then(function () { boutons.forEach(function (b) { b.disabled = false; }); if (etat.vue) afficherJeu(etat.vue); });
+      .then(function (data) {
+        connexionRetablie();
+        afficherJeu(data);
+      }, gererErreur)
+      .then(function () {
+        liberer();
+        boutons.forEach(function (b) { b.disabled = false; });
+        if (etat.vue) afficherJeu(etat.vue); // réapplique les états hidden/disabled de la vue courante
+      });
   }
 
   function demarrer() {
@@ -383,6 +479,7 @@
     setInterval(rafraichirAnnonce, 500);
     if (etat.jeton) {
       ecrireCookie(etat.jeton, 30); // prolonge le cookie à chaque visite
+      $('ecran-chargement').hidden = false; // jusqu'à la première réponse du serveur
       sonder();
     } else {
       afficherInscription();
@@ -399,12 +496,17 @@
       return;
     }
     afficherMessage('');
+    var liberer = occuper(e.submitter || $('form-inscription').querySelector('button[type="submit"]'));
     api('inscription', { pseudo: pseudo }).then(function (data) {
       etat.jeton = data.jeton;
       ecrireCookie(data.jeton, data.joursValidite);
       $('champ-pseudo').value = '';
+      // Compte créé : écran d'attente jusqu'à la première vue de la table.
+      $('ecran-inscription').hidden = true;
+      $('chargement-texte').textContent = 'Compte créé. Installation à la table…';
+      $('ecran-chargement').hidden = false;
       sonder();
-    }, gererErreur);
+    }, gererErreur).then(liberer);
   });
 
   $('form-mise').addEventListener('submit', function (e) {
@@ -414,7 +516,7 @@
       afficherMessage('Mise invalide.', true);
       return;
     }
-    agir('miser', { mise: mise });
+    agir('miser', { mise: mise }, e.submitter || this.querySelector('button[type="submit"]'));
   });
 
   /* Jetons de mise : chaque clic ajoute la valeur du jeton à la mise, sans dépasser le maximum
@@ -450,22 +552,23 @@
   });
   $('champ-mise').addEventListener('input', majJetonsMise);
 
-  $('btn-asseoir').addEventListener('click', function () { agir('asseoir'); });
+  $('btn-asseoir').addEventListener('click', function () { agir('asseoir', null, this); });
   $('btn-quitter').addEventListener('click', function () {
     var t = etat.vue && etat.vue.table;
     if (t && t.phase === 'jeu' && !window.confirm('Quitter maintenant abandonne votre main (mise perdue). Continuer ?')) return;
-    agir('quitter');
+    agir('quitter', null, this);
   });
-  $('btn-tirer').addEventListener('click', function () { agir('tirer'); });
-  $('btn-rester').addEventListener('click', function () { agir('rester'); });
+  $('btn-tirer').addEventListener('click', function () { agir('tirer', null, this); });
+  $('btn-rester').addEventListener('click', function () { agir('rester', null, this); });
 
   $('btn-supprimer').addEventListener('click', function () {
     if (!window.confirm('Sans mot de passe, quitter = supprimer définitivement votre compte et vos jetons. Continuer ?')) return;
+    var liberer = occuper(this);
     api('supprimerCompte').then(function () {
       deconnecterLocalement();
       afficherMessage('Compte supprimé.');
       chargerClassement();
-    }, gererErreur);
+    }, gererErreur).then(liberer);
   });
 
   document.addEventListener('visibilitychange', function () {

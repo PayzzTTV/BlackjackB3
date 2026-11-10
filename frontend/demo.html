@@ -41,8 +41,16 @@
   </header>
 
   <p class="message" id="message" role="status" aria-live="polite" hidden></p>
+  <!-- État de la connexion (serveur lent ou injoignable), mis à jour par app.js -->
+  <p class="connexion" id="connexion" role="status" aria-live="polite" hidden></p>
 
   <main>
+    <!-- Premier chargement : affiché tant que le serveur n'a pas répondu -->
+    <section class="chargement" id="ecran-chargement" hidden>
+      <div class="chargement-jetons" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p id="chargement-texte" role="status">Connexion à la table…</p>
+    </section>
+
     <!-- F1 : inscription par pseudo -->
     <section class="inscription" id="ecran-inscription" hidden>
       <h2>Prenez place à la table</h2>
