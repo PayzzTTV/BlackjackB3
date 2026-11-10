@@ -19,19 +19,45 @@ Responsable : **rôle C**. Complète le [pentest](pentest.md) (attaques rejouée
 | # | Gravité | Constat | Prouvé | Statut |
 |---|---|---|---|---|
 | 1 | **Haute** | Le limiteur de requêtes n'est pas une fenêtre glissante : un joueur honnête est bloqué 1 minute toutes les 4 à 5 minutes, et les inscriptions se bloquent après 30 comptes même étalés sur des heures. | Local + en ligne | ✅ Corrigé (branche `fix/c-limiteur-fenetre`), **à redéployer** |
-| 2 | **Haute** | Le correctif du verrou global (PR #58) n'est pas sur `main`. Le déploiement Apps Script est manuel : rien ne garantit que le code en ligne est le code relu. | `git` | Ouvert |
-| 3 | Moyenne | Le quota par session ne limite pas un attaquant : compteur non atomique, et chaque jeton inventé a son propre quota et coûte une lecture complète du Sheet (2,2 s mesurées en ligne). | Local + en ligne | Nouveau |
-| 4 | Moyenne | L'autre site GitHub Pages du compte partage toujours l'origine du jeu et charge 4 scripts de CDN sans SRI ni CSP. | En ligne | Ouvert (owasp n° 2) |
-| 5 | Moyenne | Les comptes expirés ne sont jamais purgés : pseudo bloqué à vie, présence au classement, Sheet qui grossit (donc chaque requête ralentit). | Local | Nouveau |
-| 6 | Faible | Le renouvellement de session écrit dans le Sheet **hors verrou**. | Revue | Nouveau |
-| 7 | Faible | Pseudos trompeurs acceptés (`Croupier_`, `Cr0upier`, `adm1n`) et noms d'objets JavaScript (`__proto__`, `constructor`). | Local | Nouveau |
-| 8 | Faible | Quitter la table après « Rester » fait perdre la mise, même avec une main gagnante. | Local | Nouveau |
-| 9 | Faible | Dépôt : toutes les actions GitHub autorisées, pas de `CODEOWNERS` sur `backend/` et `.github/`. | API GitHub | Nouveau |
-| 10 | Info | CSP : `connect-src` autorise n'importe quelle Web App Apps Script. Journal sans purge, qui garde les pseudos des comptes supprimés. | Revue | Nouveau |
+| 2 | **Haute** | Le correctif du verrou global (PR #58) n'est pas sur `main`. Le déploiement Apps Script est manuel : rien ne garantit que le code en ligne est le code relu. | `git` | ⏳ Ouvert : release et redéploiement à faire à la main |
+| 3 | Moyenne | Le quota par session ne limite pas un attaquant : compteur non atomique, et chaque jeton inventé a son propre quota et coûte une lecture complète du Sheet (2,2 s mesurées en ligne). | Local + en ligne | ✅ Atténué (seuil global), **à redéployer** ; compteur non atomique et limite de la plateforme : restent |
+| 4 | Moyenne | L'autre site GitHub Pages du compte partage toujours l'origine du jeu et charge 4 scripts de CDN sans SRI ni CSP. | En ligne | ⏳ Ouvert (owasp n° 2) : hors de ce dépôt |
+| 5 | Moyenne | Les comptes expirés ne sont jamais purgés : pseudo bloqué à vie, présence au classement, Sheet qui grossit (donc chaque requête ralentit). | Local | ✅ Corrigé, **à redéployer** + déclencheur quotidien à créer |
+| 6 | Faible | Le renouvellement de session écrit dans le Sheet **hors verrou**. | Revue | ✅ Corrigé, **à redéployer** |
+| 7 | Faible | Pseudos trompeurs acceptés (`Croupier_`, `Cr0upier`, `adm1n`) et noms d'objets JavaScript (`__proto__`, `constructor`). | Local | ✅ Corrigé, **à redéployer** |
+| 8 | Faible | Quitter la table après « Rester » fait perdre la mise, même avec une main gagnante. | Local | ✅ Corrigé, **à redéployer** |
+| 9 | Faible | Dépôt : toutes les actions GitHub autorisées, pas de `CODEOWNERS` sur `backend/` et `.github/`. | API GitHub | ◐ `CODEOWNERS` ajouté ; réglages du dépôt à faire à la main |
+| 10 | Info | CSP : `connect-src` autorise n'importe quelle Web App Apps Script. Journal sans purge, qui garde les pseudos des comptes supprimés. | Revue | ✅ Corrigé (CSP vérifiée dans le navigateur) |
 
 Les constats 3 à 6 de l'[audit OWASP](owasp.md) (squat de la table, quota d'inscriptions global, classement manipulable, refus non journalisés) restent ouverts et ne sont pas répétés ici.
 
 **Aucune faille permettant de tricher, de voir la carte cachée, de modifier un solde ou d'usurper un joueur n'a été trouvée.** Les problèmes sont tous de disponibilité, de configuration ou d'hygiène.
+
+## Correctifs appliqués (branche `fix/c-limiteur-fenetre`)
+
+74 tests passent, dont 11 nouveaux ; 8 d'entre eux échouent sur l'ancien code.
+
+| Constat | Correctif | Fichiers |
+|---|---|---|
+| 1 | Limiteur à fenêtre fixe ; quota d'inscription décompté après le contrôle du pseudo. | `backend/Code.gs` |
+| 3 | Compteur **global** des jetons inconnus (300/min). Au-delà, un jeton absent du cache est refusé sans lire le Sheet ; les joueurs en cache continuent de jouer. | `backend/Code.gs` |
+| 5 | Comptes expirés masqués du classement ; pseudo expiré libéré à la réinscription ; fonction `purgerComptesExpires()` (comptes expirés + Journal de plus de 30 jours). | `backend/Code.gs` |
+| 6 | Le renouvellement de session n'écrit plus que sous verrou. | `backend/Code.gs` |
+| 7 | Pseudos comparés aux mots réservés après remplacement des chiffres ressemblants et retrait des `_` ; pseudos en `__` refusés ; `Object.create(null)` côté client. | `backend/Code.gs`, `frontend/app.js` |
+| 8 | Quitter après « Rester » ou avec un blackjack : la place reste jusqu'au règlement, le gain est versé, puis la place disparaît. La suppression du compte retire toujours la place tout de suite. Aide et message de confirmation mis à jour. | `backend/Table.gs`, `frontend/` |
+| 9 | `.github/CODEOWNERS` : relecture demandée au rôle C sur `backend/`, `.github/`, `scripts/`, `SECURITY.md`. | `.github/CODEOWNERS` |
+| 10 | `connect-src` limité à l'URL exacte de la Web App, injectée au déploiement. Vérifié dans le navigateur : l'API répond, une autre Web App Apps Script et `example.com` sont bloquées. | `scripts/injecter-config.sh`, `pages.yml` |
+
+**Limites des correctifs** :
+- constat 3 : pendant une rafale, un vrai joueur dont la fiche n'est plus en cache (30 min sans action de jeu) est refusé jusqu'à la fenêtre suivante. Le compteur par session reste non atomique. La limite de 30 exécutions simultanées de Google ne se corrige qu'avec un proxy devant l'API ;
+- constat 7 : un pseudo honnête qui contient un mot réservé (« Groot » contient « root ») est refusé.
+
+**Reste à faire à la main** :
+1. release `develop` → `main`, puis recoller `Code.gs` **et** `Table.gs` dans Apps Script et redéployer ;
+2. archiver les anciens déploiements Apps Script ;
+3. créer le déclencheur quotidien de `purgerComptesExpires` (éditeur Apps Script → Déclencheurs) ;
+4. sortir le site `alexisdelburg.github.io` du compte, ou lui ajouter SRI et CSP (constat 4) ;
+5. réglages du dépôt (constat 9) : liste blanche d'actions, approbation après le dernier push, motifs génériques du secret scanning.
 
 ## Détail des constats
 

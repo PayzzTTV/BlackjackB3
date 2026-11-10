@@ -22,6 +22,7 @@ class FausseFeuille {
   }
   appendRow(valeurs) { this.lignes.push(valeurs.slice()); }
   deleteRow(n) { this.lignes.splice(n - 1, 1); }
+  deleteRows(n, combien) { this.lignes.splice(n - 1, combien); }
   setFrozenRows() {}
   getRange(ligne, col, nbLignes, nbCols) {
     if (typeof ligne === 'string') return { setNumberFormat() { return this; } };

@@ -63,10 +63,18 @@ function tbAsseoir(table, cle, pseudo) {
 /**
  * Quitter la table. Mise non distribuée : remboursée.
  * Main en cours : abandonnée (mise perdue), sinon on fuirait une main perdante.
+ * Main terminée (resté ou blackjack) en attente du croupier : le joueur ne peut
+ * plus rien changer, sa place reste jusqu'au règlement (gain versé normalement)
+ * puis disparaît à la manche suivante. `force` (suppression du compte) retire
+ * la place tout de suite.
  */
-function tbQuitter(table, cle, maintenant) {
+function tbQuitter(table, cle, maintenant, force) {
   var place = tbPlace_(table, cle);
   if (!place) throw tbErreur_('pas_assis');
+  if (!force && table.phase === 'jeu' && (place.statut === 'reste' || place.statut === 'blackjack')) {
+    place.part = true;
+    return [];
+  }
   var mouvements = [];
   if (table.phase === 'mises' && place.statut === 'mise') {
     mouvements.push({ cle: cle, montant: place.mise, motif: 'remboursement' });
@@ -167,7 +175,7 @@ function tbRegler_(table, maintenant) {
 
 function tbNouvelleManche_(table) {
   table.places.forEach(function (p) { p.inactif = p.mise > 0 ? 0 : p.inactif + 1; });
-  table.places = table.places.filter(function (p) { return p.inactif < TB.MANCHES_INACTIF_MAX; });
+  table.places = table.places.filter(function (p) { return !p.part && p.inactif < TB.MANCHES_INACTIF_MAX; });
   table.places.forEach(function (p) {
     p.mise = 0;
     p.main = [];

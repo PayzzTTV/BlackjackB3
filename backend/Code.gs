@@ -15,6 +15,8 @@ var CONFIG = {
   SESSION_JOURS: 30,
   MAX_INSCRIPTIONS_HEURE: 30,   // global : anti-flood de comptes
   MAX_REQUETES_MINUTE: 90,      // par session (le client interroge toutes les ~3 s)
+  MAX_JETONS_INCONNUS_MINUTE: 300, // global : au-delà, un jeton absent du cache est refusé sans lire le Sheet
+  JOURNAL_JOURS: 30,            // durée de conservation du Journal (voir purgerComptesExpires)
   TAILLE_MAX_CORPS: 1024,       // octets
   CLASSEMENT_CACHE_S: 60,
   FICHE_CACHE_S: 1800,          // fiche joueur en cache (voir « Fiches joueur »)
@@ -105,10 +107,17 @@ function doGet() {
 function actionInscription_(req) {
   var pseudo = validerPseudo_(req.pseudo);
   var norm = pseudo.toLowerCase();
-  if (PSEUDOS_RESERVES.indexOf(norm) >= 0) throw erreurClient_('pseudo_pris');
+  if (pseudoReserve_(norm)) throw erreurClient_('pseudo_pris');
 
   return avecVerrou_(function () {
-    if (trouverLigne_(COL.pseudo_norm, norm) > 0) throw erreurClient_('pseudo_pris');
+    var existante = trouverLigne_(COL.pseudo_norm, norm);
+    if (existante > 0) {
+      // Compte dont la session a expiré et qui n'est plus à la table : personne ne
+      // peut plus s'y connecter, le pseudo est libéré. Sinon il est pris.
+      var ancien = lireJoueur_(existante);
+      if (ancien.jeton_expire > Date.now() || tbPlace_(chargerTable_(), norm)) throw erreurClient_('pseudo_pris');
+      supprimerLigneJoueur_(ancien, 'purge_expire');
+    }
     // Décompté APRÈS le contrôle du pseudo : un refus « déjà pris » ne crée aucun compte
     // et ne doit pas épuiser le quota des vraies inscriptions.
     limiter_(cleQuota_('inscriptions', 3600), CONFIG.MAX_INSCRIPTIONS_HEURE, 3600);
@@ -183,7 +192,9 @@ function actionSupprimerCompte_(req) {
   return avecVerrou_(function () {
     var table = chargerTable_();
     if (tbPlace_(table, joueur.pseudo_norm)) {
-      var mouvements = tbQuitter(table, joueur.pseudo_norm, Date.now())
+      // Départ forcé : la place disparaît tout de suite, même main terminée. Sinon un
+      // gain réglé plus tard irait à celui qui reprendrait ce pseudo entre-temps.
+      var mouvements = tbQuitter(table, joueur.pseudo_norm, Date.now(), true)
         .filter(function (m) { return m.cle !== joueur.pseudo_norm; });
       validerEtSauver_(table, mouvements);
     }
@@ -205,7 +216,9 @@ function actionClassement_() {
   var enCache = cache.get('classement');
   if (enCache) return JSON.parse(enCache);
 
+  var maintenant = Date.now();
   var top = joueurs_()
+    .filter(function (l) { return Number(l[COL.jeton_expire - 1]) > maintenant; }) // comptes expirés masqués
     .map(function (l) { return { pseudo: String(l[COL.pseudo - 1]), solde: Number(l[COL.solde - 1]) || 0 }; })
     .sort(function (a, b) { return b.solde - a.solde; })
     .slice(0, 10);
@@ -331,7 +344,8 @@ function authentifier_(jeton, remplirCache) {
   if (typeof jeton !== 'string' || !/^[0-9a-f]{64}$/.test(jeton)) throw erreurClient_('session_invalide');
   var empreinte = sha256Hex_(jeton);
   var cleLimite = cleQuota_('r:' + empreinte, 60);
-  var lu = CacheService.getScriptCache().getAll([cleLimite, cleFiche_(empreinte)]);
+  var cleInconnus = cleQuota_('inconnus', 60);
+  var lu = CacheService.getScriptCache().getAll([cleLimite, cleFiche_(empreinte), cleInconnus]);
   limiter_(cleLimite, CONFIG.MAX_REQUETES_MINUTE, 60, lu[cleLimite] || null); // absent = 0
 
   var fiche = lireFiche_(lu[cleFiche_(empreinte)]);
@@ -340,7 +354,22 @@ function authentifier_(jeton, remplirCache) {
   // Lecture HORS verrou d'abord : un jeton inconnu s'arrête ici (session_invalide)
   // sans jamais prendre le verrou global. Sinon, une rafale de jetons inventés
   // (chacun avec son propre quota) bloquerait toutes les actions de jeu.
-  var joueur = joueurDepuisSheet_(empreinte);
+  //
+  // Chaque jeton inventé a son propre quota : le quota par session ne freine pas une
+  // rafale de jetons aléatoires, et chacun coûte une lecture complète du Sheet. On
+  // compte donc les jetons inconnus GLOBALEMENT : au-delà du seuil, tout jeton absent
+  // du cache est refusé sans lire le Sheet. Les joueurs déjà en cache jouent toujours.
+  var inconnus = Number(lu[cleInconnus] || 0);
+  if (inconnus >= CONFIG.MAX_JETONS_INCONNUS_MINUTE) throw erreurClient_('trop_de_requetes');
+  var joueur;
+  try {
+    joueur = joueurDepuisSheet_(empreinte);
+  } catch (err) {
+    if (err && err.codeClient === 'session_invalide') {
+      CacheService.getScriptCache().put(cleInconnus, String(inconnus + 1), 60);
+    }
+    throw err;
+  }
   if (remplirCache) {
     // Le joueur existe : seule une lecture SOUS verrou peut écrire sa fiche en cache.
     // Coût : une 2e lecture du Sheet, au plus une fois par joueur et par FICHE_CACHE_S.
@@ -356,7 +385,12 @@ function renouvellementDu_(joueur) {
   return joueur.jeton_expire - maintenant < (CONFIG.SESSION_JOURS - 1) * JOUR_MS;
 }
 
-/** Lit le joueur dans le Sheet, renouvelle la session si besoin, met la fiche en cache (sous verrou). */
+/**
+ * Lit le joueur dans le Sheet. SOUS VERROU seulement : renouvelle la session si
+ * besoin et met la fiche en cache. Hors verrou, la fonction ne fait que lire :
+ * une écriture sur un numéro de ligne lu sans verrou pourrait tomber sur la ligne
+ * d'un autre joueur si un compte était supprimé entre-temps.
+ */
 function joueurDepuisSheet_(empreinte) {
   var ligne = trouverLigne_(COL.jeton_hash, empreinte);
   if (ligne < 0) throw erreurClient_('session_invalide');
@@ -365,7 +399,7 @@ function joueurDepuisSheet_(empreinte) {
   if (!(joueur.jeton_expire > maintenant)) throw erreurClient_('session_invalide');
 
   // Expiration glissante, renouvelée au plus une fois par jour (une seule cellule écrite).
-  if (joueur.jeton_expire - maintenant < (CONFIG.SESSION_JOURS - 1) * JOUR_MS) {
+  if (memo_.sousVerrou && joueur.jeton_expire - maintenant < (CONFIG.SESSION_JOURS - 1) * JOUR_MS) {
     var expire = maintenant + CONFIG.SESSION_JOURS * JOUR_MS;
     feuille_(FEUILLE_JOUEURS).getRange(ligne, COL.jeton_expire).setValue(expire);
     majMemo_(ligne, COL.jeton_expire, [expire]);
@@ -440,6 +474,18 @@ function viderFiches_() {
 function validerPseudo_(p) {
   if (typeof p !== 'string' || !/^[A-Za-z0-9_]{3,16}$/.test(p)) throw erreurClient_('pseudo_invalide');
   return p;
+}
+
+/**
+ * Pseudo réservé ou trompeur. On compare après avoir remplacé les chiffres qui
+ * ressemblent à des lettres et retiré les « _ » : « Cr0upier », « adm1n » ou
+ * « Croupier_ » sont refusés comme « Croupier ». Les pseudos en « __ » aussi
+ * (« __proto__ » : nom d'objet JavaScript).
+ */
+function pseudoReserve_(norm) {
+  if (norm.indexOf('__') === 0) return true;
+  var lisible = norm.replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/_/g, '');
+  return PSEUDOS_RESERVES.some(function (r) { return lisible.indexOf(r) >= 0; });
 }
 
 function validerMise_(m) {
@@ -520,6 +566,14 @@ function lireJoueur_(ligne) {
     faillites: Number(v[COL.faillites - 1]) || 0,
     cree_le: v[COL.cree_le - 1]
   };
+}
+
+/** Supprime la ligne d'un joueur et retire sa fiche du cache (appelé sous verrou). */
+function supprimerLigneJoueur_(joueur, motif) {
+  feuille_(FEUILLE_JOUEURS).deleteRow(joueur.ligne);
+  memo_.joueurs = null;
+  memo_.fiches[joueur.jeton_hash] = null;
+  journal_(joueur.pseudo, motif, '');
 }
 
 /** Journal d'audit (lecture réservée au propriétaire du Sheet). */
@@ -652,6 +706,43 @@ function viderCacheJoueurs() {
   var cles = joueurs_().map(function (l) { return cleFiche_(String(l[COL.jeton_hash - 1])); });
   for (var i = 0; i < cles.length; i += 500) CacheService.getScriptCache().removeAll(cles.slice(i, i + 500));
   console.log(cles.length + ' fiche(s) retirée(s) du cache.');
+}
+
+/**
+ * Purge quotidienne. À brancher UNE fois : éditeur Apps Script → Déclencheurs →
+ * Ajouter → fonction purgerComptesExpires, déclencheur horaire, « chaque jour ».
+ *  - supprime les comptes dont la session a expiré (sauf s'ils sont à la table) :
+ *    le pseudo est libéré et l'onglet Joueurs, relu en entier, ne grossit pas sans fin ;
+ *  - supprime les lignes du Journal de plus de JOURNAL_JOURS jours.
+ */
+function purgerComptesExpires() {
+  memo_ = nouveauMemo_();
+  avecVerrou_(function () {
+    var table = chargerTable_();
+    var maintenant = Date.now();
+    var f = feuille_(FEUILLE_JOUEURS);
+    var lignes = joueurs_();
+    var comptes = 0;
+    // De bas en haut : supprimer une ligne ne décale pas celles qui restent à examiner.
+    for (var i = lignes.length - 1; i >= 0; i--) {
+      var j = lireJoueur_(i + 2);
+      if (j.jeton_expire > maintenant || tbPlace_(table, j.pseudo_norm)) continue;
+      f.deleteRow(i + 2);
+      lignes.splice(i, 1);
+      memo_.fiches[j.jeton_hash] = null;
+      comptes++;
+    }
+    if (comptes) CacheService.getScriptCache().remove('classement');
+
+    // Journal : les lignes sont dans l'ordre des dates, on retire le début.
+    var journal = feuille_(FEUILLE_JOURNAL);
+    var valeurs = journal.getDataRange().getValues();
+    var limite = maintenant - CONFIG.JOURNAL_JOURS * JOUR_MS;
+    var anciennes = 0;
+    while (anciennes + 1 < valeurs.length && new Date(valeurs[anciennes + 1][0]).getTime() < limite) anciennes++;
+    if (anciennes) journal.deleteRows(2, anciennes);
+    console.log(comptes + ' compte(s) expiré(s) et ' + anciennes + ' ligne(s) de journal supprimé(s).');
+  });
 }
 
 /** Vide la table (en cas de blocage). Les mises en cours sont remboursées. */

@@ -5,7 +5,8 @@
 # La valeur n'est jamais affichée dans les logs.
 set -euo pipefail
 
-FICHIER="${1:?usage: injecter-config.sh <config.js>}"
+FICHIER="${1:?usage: injecter-config.sh <config.js> [index.html]}"
+PAGE="${2:-}"
 FACTICE='https://script.google.com/macros/s/REMPLACER_PAR_ID_DEPLOIEMENT/exec'
 
 if [ -z "${BJ_API_URL:-}" ]; then
@@ -26,3 +27,13 @@ sed -i "s|$FACTICE|$BJ_API_URL|" "$FICHIER"
 
 grep -qF "$BJ_API_URL" "$FICHIER" || { echo "::error::Injection échouée"; exit 1; }
 echo "Configuration injectée dans $FICHIER."
+
+# CSP : connect-src limité à CETTE Web App (et plus à toutes celles de script.google.com).
+# script.googleusercontent.com reste nécessaire : Apps Script y redirige la réponse.
+if [ -n "$PAGE" ]; then
+  LARGE='connect-src https://script.google.com https://script.googleusercontent.com'
+  grep -qF "$LARGE" "$PAGE" || { echo "::error::Directive connect-src introuvable dans $PAGE"; exit 1; }
+  sed -i "s|$LARGE|connect-src $BJ_API_URL https://script.googleusercontent.com|" "$PAGE"
+  grep -qF "connect-src $BJ_API_URL " "$PAGE" || { echo "::error::Injection de la CSP échouée"; exit 1; }
+  echo "CSP resserrée dans $PAGE."
+fi

@@ -1,0 +1,6 @@
+# Relecture demandée automatiquement au rôle C (sécurité) pour tout ce qui touche
+# au serveur, à la CI et aux scripts de déploiement. Voir repartition.md.
+/backend/     @PayzzTTV
+/.github/     @PayzzTTV
+/scripts/     @PayzzTTV
+/SECURITY.md  @PayzzTTV

@@ -208,3 +208,31 @@ test('vue publique : carte cachée et paquet jamais exposés', () => {
   tb.tbRester(t, 'a', T0);
   assert.ok(JSON.stringify(tb.tbVue(t, T0, 'a')).includes('7C'), 'révélée en fin de manche');
 });
+
+test('quitter après « Rester » : la main est réglée, la place part à la manche suivante', () => {
+  const t = tableTruquee(
+    [{ cle: 'a', main: ['10S', '9H'] }, { cle: 'b', main: ['9S', '7H'] }],
+    ['10D', '7C'], ['2C']
+  );
+  tb.tbAvancer(t, T0, alea());
+  tb.tbRester(t, 'a', T0);
+  assert.deepEqual(JSON.parse(JSON.stringify(tb.tbQuitter(t, 'a', T0))), []);
+  assert.equal(t.places.length, 2, 'la place reste jusqu\'au règlement');
+  assert.equal(t.tour, 'b');
+  const m = JSON.parse(JSON.stringify(tb.tbRester(t, 'b', T0)));
+  assert.deepEqual(m.filter((x) => x.cle === 'a'), [{ cle: 'a', montant: 200, motif: 'gain:gagne' }]);
+  tb.tbAvancer(t, T0 + tb.TB.DUREE_FIN_MS, alea());
+  assert.equal(t.places.map((p) => p.cle).join(','), 'b');
+  assert.ok(!('part' in tb.tbVue(t, T0, 'b').places[0]), 'champ interne non exposé');
+});
+
+test('quitter après « Rester » avec force (suppression du compte) : place retirée tout de suite', () => {
+  const t = tableTruquee(
+    [{ cle: 'a', main: ['10S', '9H'] }, { cle: 'b', main: ['9S', '7H'] }],
+    ['10D', '7C'], ['2C']
+  );
+  tb.tbAvancer(t, T0, alea());
+  tb.tbRester(t, 'a', T0);
+  tb.tbQuitter(t, 'a', T0, true);
+  assert.equal(t.places.map((p) => p.cle).join(','), 'b');
+});
