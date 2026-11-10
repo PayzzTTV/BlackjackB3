@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!--
+    Sécurité : GitHub Pages ne permet pas d'en-têtes HTTP, la CSP est donc posée ici.
+    - aucun script inline, aucun script tiers, aucun eval
+    - réseau limité à Google Apps Script
+    - Trusted Types : toute écriture HTML brute (innerHTML...) est bloquée par le navigateur
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://script.google.com https://script.googleusercontent.com; base-uri 'none'; form-action 'none'; object-src 'none'; manifest-src 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Blackjack B3</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script src="config.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="entete">
+    <h1>Blackjack B3</h1>
+    <div class="profil" id="profil" hidden>
+      <span id="profil-pseudo"></span>
+      <span class="solde"><span id="profil-solde">0</span> jetons</span>
+      <button type="button" class="bouton-lien" id="btn-supprimer">Supprimer mon compte</button>
+    </div>
+  </header>
+
+  <p class="message" id="message" role="status" aria-live="polite" hidden></p>
+
+  <main>
+    <!-- F1 : inscription par pseudo -->
+    <section class="carte-ecran" id="ecran-inscription" hidden>
+      <h2>Choisissez un pseudo</h2>
+      <p>Pas de mot de passe : votre session est gardée dans un cookie de ce navigateur pendant 30 jours.</p>
+      <form id="form-inscription" novalidate>
+        <label for="champ-pseudo">Pseudo</label>
+        <input id="champ-pseudo" name="pseudo" autocomplete="off" spellcheck="false"
+               minlength="3" maxlength="16" pattern="[A-Za-z0-9_]{3,16}" required>
+        <small>3 à 16 caractères : lettres, chiffres, _</small>
+        <button type="submit" class="bouton-principal">Rejoindre le casino</button>
+      </form>
+    </section>
+
+    <!-- F2 : table multijoueur -->
+    <div class="disposition" id="ecran-jeu" hidden>
+      <section class="table" aria-label="Table de jeu">
+        <div class="croupier">
+          <h2>Croupier <span class="total" id="croupier-total"></span></h2>
+          <div class="main" id="croupier-cartes"></div>
+        </div>
+
+        <p class="annonce" id="annonce"></p>
+
+        <ul class="places" id="places"></ul>
+
+        <div class="commandes">
+          <button type="button" id="btn-asseoir" class="bouton-principal">S'asseoir</button>
+          <form id="form-mise" class="mise" novalidate>
+            <label for="champ-mise">Mise</label>
+            <input id="champ-mise" type="number" inputmode="numeric" step="10" value="50">
+            <button type="submit" class="bouton-principal">Miser</button>
+          </form>
+          <button type="button" id="btn-tirer" class="bouton-principal">Tirer</button>
+          <button type="button" id="btn-rester" class="bouton-secondaire">Rester</button>
+          <button type="button" id="btn-quitter" class="bouton-lien">Quitter la table</button>
+        </div>
+      </section>
+
+      <!-- F3 : classement -->
+      <aside class="classement" aria-label="Classement">
+        <h2>Top 10</h2>
+        <ol id="classement"></ol>
+      </aside>
+    </div>
+  </main>
+
+  <noscript><p class="message">JavaScript est nécessaire pour jouer.</p></noscript>
+</body>
+</html>

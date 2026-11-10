@@ -1,0 +1,17 @@
+# Identifiants / config locale : ne jamais committer
+.clasp.json
+.clasprc.json
+.env
+.env.*
+*.pem
+*.key
+credentials*.json
+client_secret*.json
+service-account*.json
+
+# Divers
+node_modules/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

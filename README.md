@@ -1,0 +1,91 @@
+# Blackjack B3
+
+Blackjack **multijoueur** dans le navigateur : une table de 5 places, un croupier, des jetons. Les joueurs sont enregistrés dans un **Google Sheet**, et un petit script Google Apps Script attaché à ce Sheet arbitre les parties. Le projet est pensé **sécurité d'abord**.
+
+- **F1 : inscription par pseudo** (sans mot de passe, session gardée dans un cookie 30 jours)
+- **F2 : table partagée** (chacun son tour contre le croupier, mises de 10 à 500 jetons)
+- **F3 : classement** (top 10)
+
+Le pourquoi, le périmètre et le modèle de menaces sont détaillés dans [cadrage.md](cadrage.md).
+
+## Structure
+
+```
+frontend/        page statique (HTML/CSS/JS sans dépendance), publiée sur GitHub Pages
+  index.html     structure + Content-Security-Policy
+  style.css
+  app.js         affichage, cookie de session, appels API
+  config.js      URL de l'API Apps Script  <- à renseigner
+backend/         Google Apps Script (à coller dans l'éditeur du Sheet)
+  Code.gs        API HTTP, sessions, quotas, verrous, accès au Sheet
+  Table.gs       logique de la table multijoueur (pure)
+  Blackjack.gs   règles du blackjack et aléa sécurisé (pures)
+  appsscript.json manifeste (scope unique : spreadsheets.currentonly)
+tests/           tests Node sans dépendance (le vrai code .gs exécuté avec de faux services Google)
+```
+
+## Installation
+
+### 1. Le Google Sheet et l'API (5 minutes)
+
+1. Créez un Google Sheet vide (ex. « Blackjack B3 »). **Ne le partagez avec personne.**
+2. Menu **Extensions → Apps Script**.
+3. Dans l'éditeur :
+   - remplacez le contenu de `Code.gs` par celui de [`backend/Code.gs`](backend/Code.gs) ;
+   - ajoutez deux fichiers de script `Table` et `Blackjack` avec le contenu de [`backend/Table.gs`](backend/Table.gs) et [`backend/Blackjack.gs`](backend/Blackjack.gs) ;
+   - **Paramètres du projet** (roue dentée) → cochez « Afficher le fichier manifeste appsscript.json », puis remplacez son contenu par [`backend/appsscript.json`](backend/appsscript.json).
+4. Sélectionnez la fonction `initialiser` puis **Exécuter**. Acceptez l'autorisation demandée : elle porte uniquement sur *ce* classeur. Les onglets `Joueurs` et `Journal` sont créés.
+5. **Déployer → Nouveau déploiement → Application Web** :
+   - *Exécuter en tant que* : **Moi** ;
+   - *Qui a accès* : **Tout le monde** (indispensable pour que le navigateur des joueurs puisse appeler l'API ; le Sheet, lui, reste privé).
+6. Copiez l'URL obtenue (`https://script.google.com/macros/s/…/exec`).
+
+> Pour publier une modification du script : **Déployer → Gérer les déploiements → Modifier → Nouvelle version**. L'URL ne change pas.
+
+Vous pouvez aussi utiliser [`clasp`](https://github.com/google/clasp) (`clasp push` depuis `backend/`). Le fichier `.clasp.json` est ignoré par git.
+
+### 2. Le front
+
+1. Collez l'URL de l'étape précédente dans [`frontend/config.js`](frontend/config.js) (`API_URL`).
+2. Poussez sur GitHub, puis **Settings → Pages → Source : GitHub Actions**. Le workflow [`pages.yml`](.github/workflows/pages.yml) publie le dossier `frontend/` à chaque push sur `main`.
+
+En local : servez `frontend/` en HTTP sur `localhost` (ex. `npx serve frontend` ou l'extension Live Server).
+
+### 3. Tests
+
+Node 20 ou plus, aucune installation :
+
+```bash
+node --test "tests/*.test.js"
+```
+
+Les 36 tests couvrent les règles, le déroulement de la table, et la sécurité de l'API : jetons forgés ou expirés, injection de formule, mises truquées, actions hors tour, carte cachée jamais envoyée, quotas, erreurs sans fuite. La CI ([`tests.yml`](.github/workflows/tests.yml)) les lance à chaque push.
+
+## Jouer
+
+1. Choisissez un pseudo : vous recevez 1 000 jetons.
+2. **S'asseoir**, puis **Miser**. La distribution part quand tous les joueurs assis ont misé, ou 15 s après la première mise.
+3. À votre tour (30 s) : **Tirer** ou **Rester**. Le croupier tire jusqu'à 17.
+4. Blackjack payé 3:2, victoire 1:1, égalité remboursée.
+
+Sans mot de passe, **votre cookie est votre compte** : en navigation privée ou après effacement des cookies, il est perdu. « Supprimer mon compte » libère le pseudo.
+
+## Administration
+
+Depuis l'éditeur Apps Script :
+- `initialiser()` : crée les onglets (sans effet s'ils existent déjà) ;
+- `reinitialiserTable()` : vide la table en cas de blocage et rembourse les mises en cours.
+
+Le **Journal** du Sheet trace inscriptions, mises, gains, remboursements et suppressions.
+
+## Sécurité en bref
+
+- Le navigateur n'a aucune autorité : cartes, tours et soldes sont décidés par le serveur.
+- Mélange cryptographique (UUID v4 → SHA-256 → Fisher-Yates sans biais).
+- Jeton de session de 244 bits, seule son empreinte SHA-256 est stockée.
+- Cookie `__Host-` `Secure` `SameSite=Strict`.
+- CSP stricte + Trusted Types, aucun `innerHTML`, aucune dépendance tierce.
+- Verrou global sur les écritures, quotas par session et à l'inscription.
+- Scope Google minimal (`spreadsheets.currentonly`), Sheet non partagé.
+
+Limites assumées et détails : voir [cadrage.md §4](cadrage.md#4-sécurité--le-cœur-du-projet).
